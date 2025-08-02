@@ -362,4 +362,17 @@ Pull requests welcome! Please follow:
 
 ⭐ Star this repo if it helped you | 🐛 Report issues | 🔄 Pull requests welcome
 
+
+# Tối ưu (khuyến nghị)
+python auto_runner.py --auto              # 35 phút
+python auto_runner.py --interval 30       # 30 phút  
+python auto_runner.py --interval 45       # 45 phút
+
+# Nhanh hơn (ít chính xác hơn)
+python auto_runner.py --interval 20       # 20 phút
+
+# Chậm hơn (có thể bỏ lỡ cơ hội)
+python auto_runner.py --interval 60       # 60 phút
+
+
 </div>

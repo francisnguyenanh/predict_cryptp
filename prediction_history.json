@@ -1,2 +1,62 @@
 {
+  "XRPJPY": [
+    {
+      "current_price": 440.64,
+      "entry_price": 435.53,
+      "signal_type": "BUY",
+      "success_probability": 0,
+      "tp1": 439.0278853030274,
+      "tp2": 441.359808838379,
+      "stop_loss": 433.19807646464835,
+      "trend_strength": "WAIT_FOR_UPTREND",
+      "entry_quality": "LOW",
+      "timestamp": "2025-08-02T16:34:17.506183",
+      "status": "PENDING"
+    }
+  ],
+  "XLMJPY": [
+    {
+      "current_price": 56.87,
+      "entry_price": 56.06,
+      "signal_type": "BUY",
+      "success_probability": 0,
+      "tp1": 56.562727087313235,
+      "tp2": 56.89787847885538,
+      "stop_loss": 55.72484860845785,
+      "trend_strength": "WAIT_FOR_UPTREND",
+      "entry_quality": "LOW",
+      "timestamp": "2025-08-02T16:34:20.335204",
+      "status": "PENDING"
+    }
+  ],
+  "ADAJPY": [
+    {
+      "current_price": 106.02,
+      "entry_price": 104.48,
+      "signal_type": "BUY",
+      "success_probability": 0,
+      "tp1": 105.37508742285296,
+      "tp2": 105.97181237142159,
+      "stop_loss": 103.88327505143137,
+      "trend_strength": "WAIT_FOR_UPTREND",
+      "entry_quality": "LOW",
+      "timestamp": "2025-08-02T16:34:23.180722",
+      "status": "PENDING"
+    }
+  ],
+  "SUIJPY": [
+    {
+      "current_price": 516.8,
+      "entry_price": 507.4,
+      "signal_type": "BUY",
+      "success_probability": 0,
+      "tp1": 511.79576592342613,
+      "tp2": 514.7262765390436,
+      "stop_loss": 504.46948938438254,
+      "trend_strength": "WAIT_FOR_UPTREND",
+      "entry_quality": "LOW",
+      "timestamp": "2025-08-02T16:34:25.993120",
+      "status": "PENDING"
+    }
+  ]
 }

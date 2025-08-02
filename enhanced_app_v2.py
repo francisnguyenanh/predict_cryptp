@@ -721,7 +721,7 @@ class EnhancedCryptoPredictionAppV2:
                 print(f"{Fore.WHITE}Entry vs Current: {Fore.CYAN}{entry_diff:+.2f}%{Style.RESET_ALL}")
                 print(f"{Fore.YELLOW}⏳ Tín hiệu: CHỜ THỜI ĐIỂM TỐT HỚN{Style.RESET_ALL}")
                 print(f"{Fore.YELLOW}💡 Chờ mua tại: {best['entry_price']:.6f} (giảm {abs(entry_diff):.2f}%){Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}� Hoặc chờ tín hiệu tốt hơn trong 15-30 phút{Style.RESET_ALL}")
+                print(f"{Fore.YELLOW}📊 Hoặc chờ tín hiệu tốt hơn trong 30-45 phút{Style.RESET_ALL}")
             
             # Active signals
             active_signals = [k for k, v in best['signals'].items() if v]
@@ -740,10 +740,10 @@ class EnhancedCryptoPredictionAppV2:
                     print(f"{Fore.RED}❌ TÍN HIỆU MUA RẤT YẾU - Không nên mua{Style.RESET_ALL}")
             else:  # WAIT
                 print(f"{Fore.YELLOW}⏳ CHƯA CÓ CỚ HỘI TỐT - Chờ thị trường tích cực hơn{Style.RESET_ALL}")
-                print(f"{Fore.BLUE}💡 Tip: Theo dõi trong 15-30 phút để tìm tín hiệu mua tốt{Style.RESET_ALL}")
+                print(f"{Fore.BLUE}💡 Tip: Theo dõi trong 30-45 phút để tìm tín hiệu mua tốt{Style.RESET_ALL}")
         
         print(f"\n{Fore.BLUE}⏰ Analysis completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}💡 Next update recommended in 15-30 minutes{Style.RESET_ALL}")
+        print(f"{Fore.GREEN}💡 Next update recommended in 30-45 minutes for optimal accuracy{Style.RESET_ALL}")
         
         return results
 

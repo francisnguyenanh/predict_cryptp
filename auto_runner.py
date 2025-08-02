@@ -10,7 +10,7 @@ from datetime import datetime
 from enhanced_app_v2 import EnhancedCryptoPredictionAppV2
 
 class AutoRunner:
-    def __init__(self, interval_minutes=15):
+    def __init__(self, interval_minutes=35):  # Thay đổi từ 15 thành 35 phút
         self.app = EnhancedCryptoPredictionAppV2()
         self.interval_minutes = interval_minutes
         
@@ -111,7 +111,7 @@ class AutoRunner:
 def main():
     import sys
     
-    runner = AutoRunner(interval_minutes=15)  # Chạy mỗi 15 phút
+    runner = AutoRunner(interval_minutes=35)  # Thay đổi từ 15 thành 35 phút
     
     if len(sys.argv) > 1:
         if sys.argv[1] == "--auto":
@@ -128,8 +128,9 @@ def main():
         else:
             print("Usage:")
             print("  python auto_runner.py --once           # Chạy một lần")
-            print("  python auto_runner.py --auto           # Chạy tự động mỗi 15 phút")
+            print("  python auto_runner.py --auto           # Chạy tự động mỗi 35 phút (tối ưu)")
             print("  python auto_runner.py --interval 30    # Chạy tự động mỗi 30 phút")
+            print("  python auto_runner.py --interval 45    # Chạy tự động mỗi 45 phút")
     else:
         # Mặc định chạy một lần
         runner.run_once()
