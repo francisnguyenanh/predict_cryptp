@@ -1,0 +1,56 @@
+Crypto Analysis Report - 2025-08-02 16:22:56
+================================================================================
+
+#1 - XRPJPY
+Giá: 439.440000
+Tín hiệu: WAIT
+Xác suất: 0.0%
+Chất lượng: LOW
+RSI: 46.4
+Xu hướng: 15m: DOWNTREND | 1h: DOWNTREND | 4h: DOWNTREND
+TP1: 419.858698 (-4.46%)
+TP2: 422.249396 (-3.91%)
+SL: 416.272651 (+-5.27%)
+--------------------------------------------------
+
+#2 - XLMJPY
+Giá: 56.850000
+Tín hiệu: BUY
+Xác suất: 0.0%
+Chất lượng: LOW
+RSI: 47.6
+Xu hướng: 15m: SIDEWAYS | 1h: DOWNTREND | 4h: DOWNTREND
+TP1: 56.581453 (+-0.47%)
+TP2: 56.929089 (+0.14%)
+SL: 55.712364 (-2.00%)
+--------------------------------------------------
+
+#3 - ADAJPY
+Giá: 105.660000
+Tín hiệu: WAIT
+Xác suất: 0.0%
+Chất lượng: LOW
+RSI: 44.0
+Xu hướng: 15m: DOWNTREND | 1h: DOWNTREND | 4h: DOWNTREND
+TP1: 100.963143 (-4.45%)
+TP2: 101.549287 (-3.89%)
+SL: 100.083928 (+-5.28%)
+--------------------------------------------------
+
+#4 - SUIJPY
+Giá: 514.000000
+Tín hiệu: WAIT
+Xác suất: 0.0%
+Chất lượng: LOW
+RSI: 45.9
+Xu hướng: 15m: DOWNTREND | 1h: DOWNTREND | 4h: DOWNTREND
+TP1: 491.168956 (-4.44%)
+TP2: 494.037913 (-3.88%)
+SL: 486.865522 (+-5.28%)
+--------------------------------------------------
+
+KHUYẾN NGHỊ TỐT NHẤT:
+Coin: XRPJPY
+Signal: WAIT
+Probability: 0.0%
+Quality: LOW

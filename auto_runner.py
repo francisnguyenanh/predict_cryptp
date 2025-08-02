@@ -53,13 +53,21 @@ class AutoRunner:
                     f.write(f"Xu hướng: {trends_str}\n")
                     
                     if result['signal_type'] == 'BUY':
-                        f.write(f"TP1: {result['tp1']:.6f} (+{((result['tp1']/result['current_price']-1)*100):.2f}%)\n")
-                        f.write(f"TP2: {result['tp2']:.6f} (+{((result['tp2']/result['current_price']-1)*100):.2f}%)\n")
-                        f.write(f"SL: {result['stop_loss']:.6f} (-{((1-result['stop_loss']/result['current_price'])*100):.2f}%)\n")
+                        f.write(f"Entry: {result['entry_price']:.6f}\n")
+                        f.write(f"TP1: {result['tp1']:.6f} (+{((result['tp1']/result['entry_price']-1)*100):.2f}%)\n")
+                        f.write(f"TP2: {result['tp2']:.6f} (+{((result['tp2']/result['entry_price']-1)*100):.2f}%)\n")
+                        f.write(f"SL: {result['stop_loss']:.6f} (-{((1-result['stop_loss']/result['entry_price'])*100):.2f}%)\n")
+                    elif result['signal_type'] == 'WAIT':
+                        f.write(f"Khuyến nghị: Chờ thời điểm tốt hơn\n")
+                        f.write(f"Target Entry: {result['entry_price']:.6f}\n")
+                    
+                    # Thêm thông tin accuracy mới
+                    pred_results = result['prediction_results']
+                    if pred_results['total'] > 0:
+                        f.write(f"Latest Accuracy: {pred_results['latest_accuracy']:.0f}%\n")
+                        f.write(f"Average Accuracy: {pred_results['average_accuracy']:.0f}%\n")
                     else:
-                        f.write(f"TP1: {result['tp1']:.6f} (-{((1-result['tp1']/result['current_price'])*100):.2f}%)\n")
-                        f.write(f"TP2: {result['tp2']:.6f} (-{((1-result['tp2']/result['current_price'])*100):.2f}%)\n")
-                        f.write(f"SL: {result['stop_loss']:.6f} (+{((result['stop_loss']/result['current_price']-1)*100):.2f}%)\n")
+                        f.write(f"Accuracy: NEW (chưa có dữ liệu)\n")
                     
                     f.write("-" * 50 + "\n\n")
                 

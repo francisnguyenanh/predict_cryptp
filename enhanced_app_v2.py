@@ -62,13 +62,31 @@ class PredictionTracker:
         self.save_predictions()
     
     def check_predictions(self, symbol, current_price):
-        """Kiểm tra kết quả các dự đoán chưa hoàn thành"""
+        """Kiểm tra kết quả các dự đoán và tính accuracy mới"""
         if symbol not in self.predictions:
-            return {'total': 0, 'hit_tp1': 0, 'hit_tp2': 0, 'hit_sl': 0, 'pending': 0}
+            return {'total': 0, 'hit_tp1': 0, 'hit_tp2': 0, 'hit_sl': 0, 'pending': 0, 
+                   'latest_accuracy': 0, 'average_accuracy': 0}
         
         results = {'total': 0, 'hit_tp1': 0, 'hit_tp2': 0, 'hit_sl': 0, 'pending': 0}
+        accuracy_list = []
+        latest_accuracy = 0
         
-        for prediction in self.predictions[symbol]:
+        for i, prediction in enumerate(self.predictions[symbol]):
+            # Tính accuracy cho từng prediction
+            single_accuracy = self.calculate_single_accuracy(prediction, current_price)
+            
+            # Lưu accuracy vào prediction nếu chưa có
+            if 'accuracy' not in prediction:
+                prediction['accuracy'] = single_accuracy
+            
+            accuracy_list.append(prediction['accuracy'])
+            
+            # Accuracy của prediction gần nhất
+            if i == len(self.predictions[symbol]) - 1:
+                latest_accuracy = single_accuracy
+                # Cập nhật accuracy cho prediction gần nhất
+                prediction['accuracy'] = single_accuracy
+            
             if prediction['status'] == 'PENDING':
                 # Kiểm tra thời gian hết hạn (24h)
                 pred_time = datetime.fromisoformat(prediction['timestamp'])
@@ -76,7 +94,7 @@ class PredictionTracker:
                     prediction['status'] = 'EXPIRED'
                     continue
                 
-                # Kiểm tra TP/SL
+                # Kiểm tra TP/SL cho status cũ
                 signal_type = prediction['signal_type']
                 entry_price = prediction['entry_price']
                 tp1 = prediction['tp1']
@@ -93,7 +111,7 @@ class PredictionTracker:
                     elif current_price <= stop_loss:
                         prediction['status'] = 'HIT_SL'
                         prediction['actual_exit_price'] = current_price
-                else:  # SELL
+                elif signal_type == 'SELL':
                     if current_price <= tp2:
                         prediction['status'] = 'HIT_TP2'
                         prediction['actual_exit_price'] = current_price
@@ -104,7 +122,7 @@ class PredictionTracker:
                         prediction['status'] = 'HIT_SL'
                         prediction['actual_exit_price'] = current_price
         
-        # Tính toán thống kê
+        # Tính toán thống kê cũ
         for prediction in self.predictions[symbol]:
             results['total'] += 1
             if prediction['status'] == 'HIT_TP1':
@@ -116,8 +134,46 @@ class PredictionTracker:
             elif prediction['status'] == 'PENDING':
                 results['pending'] += 1
         
+        # Tính accuracy trung bình
+        average_accuracy = sum(accuracy_list) / len(accuracy_list) if accuracy_list else 0
+        
+        results['latest_accuracy'] = latest_accuracy
+        results['average_accuracy'] = average_accuracy
+        
         self.save_predictions()
         return results
+    
+    def calculate_single_accuracy(self, prediction, current_price):
+        """Tính accuracy cho một prediction dựa trên logic mới"""
+        try:
+            signal_type = prediction['signal_type']
+            tp1 = prediction['tp1']
+            tp2 = prediction['tp2']
+            
+            if signal_type == 'BUY':
+                # Với BUY: nếu giá hiện tại >= TP1 hoặc TP2 thì accuracy = 100%
+                if current_price >= tp2:
+                    return 100.0  # Đạt TP2 = 100%
+                elif current_price >= tp1:
+                    return 100.0  # Đạt TP1 = 100%
+                else:
+                    return 0.0    # Chưa đạt TP = 0%
+            
+            elif signal_type == 'SELL':
+                # Với SELL: nếu giá hiện tại <= TP1 hoặc TP2 thì accuracy = 100%
+                if current_price <= tp2:
+                    return 100.0  # Đạt TP2 = 100%
+                elif current_price <= tp1:
+                    return 100.0  # Đạt TP1 = 100%
+                else:
+                    return 0.0    # Chưa đạt TP = 0%
+            
+            else:  # WAIT signal
+                return 0.0
+                
+        except Exception as e:
+            print(f"❌ Error calculating accuracy: {e}")
+            return 0.0
 
 class EnhancedCryptoPredictionAppV2:
     def __init__(self):
@@ -557,11 +613,12 @@ class EnhancedCryptoPredictionAppV2:
             # Trend summary
             trends_summary = f"{len([t for t in result['trends'].values() if t == 'UPTREND'])}↑ {len([t for t in result['trends'].values() if t == 'DOWNTREND'])}↓"
             
-            # Prediction accuracy
+            # Prediction accuracy - hiển thị cả latest và average
             pred_results = result['prediction_results']
             if pred_results['total'] > 0:
-                success_rate = ((pred_results['hit_tp1'] + pred_results['hit_tp2']) / pred_results['total']) * 100
-                accuracy = f"{success_rate:.0f}%"
+                latest_acc = pred_results['latest_accuracy']
+                avg_acc = pred_results['average_accuracy']
+                accuracy = f"L:{latest_acc:.0f}%|A:{avg_acc:.0f}%"
             else:
                 accuracy = "NEW"
             
@@ -598,12 +655,13 @@ class EnhancedCryptoPredictionAppV2:
             pred_results = result['prediction_results']
             if pred_results['total'] > 0:
                 total = pred_results['total']
-                success = pred_results['hit_tp1'] + pred_results['hit_tp2']
-                success_rate = (success / total) * 100
+                latest_acc = pred_results['latest_accuracy']
+                avg_acc = pred_results['average_accuracy']
                 
                 print(f"{Fore.CYAN}{result['symbol']}{Style.RESET_ALL}: "
-                      f"Total: {total}, Success: {success}, "
-                      f"Rate: {Fore.GREEN if success_rate > 60 else Fore.YELLOW if success_rate > 40 else Fore.RED}{success_rate:.1f}%{Style.RESET_ALL}")
+                      f"Total: {total}, "
+                      f"Latest: {Fore.GREEN if latest_acc >= 50 else Fore.RED}{latest_acc:.0f}%{Style.RESET_ALL}, "
+                      f"Average: {Fore.GREEN if avg_acc >= 50 else Fore.YELLOW if avg_acc >= 30 else Fore.RED}{avg_acc:.0f}%{Style.RESET_ALL}")
     
     def run_enhanced_analysis(self):
         """Chạy phân tích nâng cao"""
