@@ -31,6 +31,31 @@ class AutoRunner:
         except Exception as e:
             print(f"❌ Lỗi trong quá trình phân tích: {e}")
     
+    def run_multi_timeframe_analysis_job(self):
+        """Chạy phân tích đa khung thời gian"""
+        try:
+            all_results = self.app.run_multi_timeframe_analysis()
+            return all_results
+        except Exception as e:
+            print(f"❌ Lỗi trong quá trình phân tích đa khung thời gian: {e}")
+            return None
+    
+    def run_single_investment_type_job(self, investment_type):
+        """Chạy phân tích cho một kiểu đầu tư cụ thể"""
+        try:
+            results = []
+            for pair in self.app.pairs:
+                result = self.app.analyze_single_pair_by_investment_type(pair, investment_type)
+                if result:
+                    results.append(result)
+                time.sleep(1)
+            
+            results.sort(key=lambda x: x['success_probability'], reverse=True)
+            return results
+        except Exception as e:
+            print(f"❌ Lỗi phân tích {investment_type}: {e}")
+            return None
+    
     def save_results_to_log(self, results):
         """Lưu kết quả vào file log"""
         try:
@@ -94,28 +119,38 @@ def main():
     import sys
     
     runner = AutoRunner(interval_minutes=35)  # Thay đổi từ 15 thành 35 phút
-    
-    if len(sys.argv) > 1:
-        if sys.argv[1] == "--auto":
-            runner.start_auto_mode()
-        elif sys.argv[1] == "--once":
-            runner.run_once()
-        elif sys.argv[1] == "--interval" and len(sys.argv) > 2:
-            try:
-                interval = int(sys.argv[2])
-                runner = AutoRunner(interval_minutes=interval)
-                runner.start_auto_mode()
-            except ValueError:
-                print("❌ Interval phải là số nguyên (phút)")
-        else:
-            print("Usage:")
-            # print("  python auto_runner.py --once           # Chạy một lần")
-            # print("  python auto_runner.py --auto           # Chạy tự động mỗi 35 phút (tối ưu)")
-            # print("  python auto_runner.py --interval 30    # Chạy tự động mỗi 30 phút")
-            # print("  python auto_runner.py --interval 45    # Chạy tự động mỗi 45 phút")
-    else:
-        # Mặc định chạy một lần
-        runner.run_once()
+    runner.run_multi_timeframe_analysis_job()
+    # if len(sys.argv) > 1:
+    #     if sys.argv[1] == "--auto":
+    #         runner.start_auto_mode()
+    #     elif sys.argv[1] == "--once":
+    #         runner.run_once()
+    #     elif sys.argv[1] == "--multi":
+    #         # Chạy phân tích đa khung thời gian
+    #         runner.run_multi_timeframe_analysis_job()
+    #     elif sys.argv[1] in ["--60m", "--4h", "--1d"]:
+    #         # Chạy phân tích cho một kiểu đầu tư cụ thể
+    #         investment_type = sys.argv[1][2:]  # Bỏ "--"
+    #         runner.run_single_investment_type_job(investment_type)
+    #     elif sys.argv[1] == "--interval" and len(sys.argv) > 2:
+    #         try:
+    #             interval = int(sys.argv[2])
+    #             runner = AutoRunner(interval_minutes=interval)
+    #             runner.start_auto_mode()
+    #         except ValueError:
+    #             print("❌ Interval phải là số nguyên (phút)")
+    #     else:
+    #         print("Usage:")
+    #         print("  python auto_runner.py --once           # Chạy một lần (60m)")
+    #         print("  python auto_runner.py --multi          # Chạy tất cả các kiểu đầu tư (60m, 4h, 1d)")
+    #         print("  python auto_runner.py --60m            # Chạy phân tích 60 phút")
+    #         print("  python auto_runner.py --4h             # Chạy phân tích 4 giờ")
+    #         print("  python auto_runner.py --1d             # Chạy phân tích 1 ngày")
+    #         print("  python auto_runner.py --interval 30    # Chạy tự động mỗi 30 phút")
+    # else:
+    #     # Mặc định chạy một lần (60m)
+    #     runner.run_once()
 
 if __name__ == "__main__":
     main()
+    

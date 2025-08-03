@@ -157,9 +157,15 @@ class PredictionTracker:
 
 class EnhancedCryptoPredictionAppV2:
     def __init__(self):
-        self.pairs = ['XRPJPY', 'XLMJPY', 'ADAJPY', 'SUIJPY']
+        self.pairs = ['XRPJPY', 'XLMJPY', 'ADAJPY', 'SUIJPY', 'LINKJPY', 'SOLJPY', 'ETHJPY']
         self.base_url = "https://api.binance.com/api/v3/klines"
         self.tracker = PredictionTracker()
+        # Các kiểu đầu tư
+        self.investment_types = {
+            '60m': {'timeframe': '15m', 'analysis_timeframes': ['15m', '1h'], 'hold_duration': '60 minutes'},
+            '4h': {'timeframe': '1h', 'analysis_timeframes': ['1h', '4h'], 'hold_duration': '4 hours'}, 
+            '1d': {'timeframe': '4h', 'analysis_timeframes': ['4h', '1d'], 'hold_duration': '1 day'}
+        }
         
 
     def get_kline_data(self, symbol, interval='15m', limit=200):
@@ -235,28 +241,69 @@ class EnhancedCryptoPredictionAppV2:
             return None
     
 
-    def calculate_tp_sl_fixed(self, entry_price, signal_type, atr_value, trend_strength):
-        """Tính toán TP/SL cho SPOT TRADING (chỉ BUY)"""
+    def calculate_tp_sl_by_investment_type(self, entry_price, signal_type, atr_value, trend_strength, investment_type='60m'):
+        """Tính toán TP/SL theo kiểu đầu tư (60m, 4h, 1d)"""
         
-        # Điều chỉnh multiplier cho spot trading
-        if trend_strength == "STRONG_UP":
-            tp1_multiplier = 2.5  # TP cao hơn cho uptrend mạnh
-            tp2_multiplier = 4.0  
-            sl_multiplier = 1.5   # SL conservative
-        elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
-            tp1_multiplier = 1.5  # TP conservative trong downtrend
-            tp2_multiplier = 2.5
-            sl_multiplier = 1.0   # SL tight hơn
-        else:
-            tp1_multiplier = 2.0
-            tp2_multiplier = 3.0
-            sl_multiplier = 1.2
+        # Điều chỉnh multiplier theo kiểu đầu tư
+        if investment_type == '60m':
+            # Scalping/Short-term (giữ 60 phút)
+            if trend_strength == "STRONG_UP":
+                # Tăng TP cho STRONG_UP để tận dụng momentum
+                tp1_multiplier = 2.8  # Tăng từ 2.5 → 2.8
+                tp2_multiplier = 4.5  # Tăng từ 4.0 → 4.5
+                sl_multiplier = 1.5
+            elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
+                # Giảm TP cho trend yếu/đảo chiều
+                tp1_multiplier = 1.2  # Giảm từ 1.5 → 1.2
+                tp2_multiplier = 2.0  # Giảm từ 2.5 → 2.0
+                sl_multiplier = 1.0
+            else:
+                # Giảm TP cho MIXED/Sideway (trend yếu)
+                tp1_multiplier = 1.8  # Giảm từ 2.0 → 1.8
+                tp2_multiplier = 2.8  # Giảm từ 3.0 → 2.8
+                sl_multiplier = 1.2
+                
+        elif investment_type == '4h':
+            # Swing trading (giữ 4 giờ) - Điều chỉnh TP phù hợp với xu hướng
+            if trend_strength == "STRONG_UP":
+                # Tăng TP cho STRONG_UP để tận dụng momentum mạnh
+                tp1_multiplier = 4.2  # Tăng từ 3.5 → 4.2
+                tp2_multiplier = 6.5  # Tăng từ 5.5 → 6.5
+                sl_multiplier = 1.8
+            elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
+                # Giảm TP cho trend yếu/đảo chiều
+                tp1_multiplier = 1.6  # Giảm từ 2.0 → 1.6
+                tp2_multiplier = 2.6  # Giảm từ 3.2 → 2.6
+                sl_multiplier = 1.3
+            else:
+                # Giảm TP cho Sideway/MIXED (trend yếu)
+                tp1_multiplier = 2.3  # Giảm từ 2.8 → 2.3
+                tp2_multiplier = 3.6  # Giảm từ 4.2 → 3.6
+                sl_multiplier = 1.5
+                
+        elif investment_type == '1d':
+            # Position trading (giữ 1 ngày) - TP phù hợp với xu hướng dài hạn
+            if trend_strength == "STRONG_UP":
+                # Tăng TP cho STRONG_UP để tận dụng xu hướng dài hạn mạnh
+                tp1_multiplier = 5.5  # Tăng từ 4.5 → 5.5
+                tp2_multiplier = 9.0  # Tăng từ 7.5 → 9.0
+                sl_multiplier = 2.2
+            elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
+                # Giảm TP cho trend yếu/đảo chiều
+                tp1_multiplier = 2.2  # Giảm từ 2.8 → 2.2
+                tp2_multiplier = 3.6  # Giảm từ 4.5 → 3.6
+                sl_multiplier = 1.8
+            else:
+                # Giảm TP cho Sideway/MIXED (trend yếu)
+                tp1_multiplier = 3.0  # Giảm từ 3.5 → 3.0
+                tp2_multiplier = 5.2  # Giảm từ 6.0 → 5.2
+                sl_multiplier = 2.0
         
         if signal_type == 'BUY':
             # SPOT BUY: Mua thấp, bán cao
-            tp1 = entry_price + (atr_value * tp1_multiplier)    # Bán một phần
-            tp2 = entry_price + (atr_value * tp2_multiplier)    # Bán phần còn lại
-            stop_loss = entry_price - (atr_value * sl_multiplier)  # Cắt lỗ nếu giá tiếp tục giảm
+            tp1 = entry_price + (atr_value * tp1_multiplier)
+            tp2 = entry_price + (atr_value * tp2_multiplier)
+            stop_loss = entry_price - (atr_value * sl_multiplier)
         else:  # WAIT
             # Không trade, đặt level thấp để chờ
             tp1 = entry_price + (atr_value * 1.0)
@@ -264,6 +311,10 @@ class EnhancedCryptoPredictionAppV2:
             stop_loss = entry_price - (atr_value * 0.5)
         
         return tp1, tp2, stop_loss
+
+    def calculate_tp_sl_fixed(self, entry_price, signal_type, atr_value, trend_strength):
+        """Tính toán TP/SL cho SPOT TRADING (chỉ BUY) - backward compatibility"""
+        return self.calculate_tp_sl_by_investment_type(entry_price, signal_type, atr_value, trend_strength, '60m')
     
     def calculate_enhanced_signal_score(self, df):
         """Tính điểm tín hiệu nâng cao với trọng số"""
@@ -434,6 +485,136 @@ class EnhancedCryptoPredictionAppV2:
         
         return final_prob, signal_type, trend_strength
     
+    def analyze_single_pair_by_investment_type(self, symbol, investment_type='60m'):
+        """Phân tích một cặp coin theo kiểu đầu tư"""
+        investment_config = self.investment_types[investment_type]
+        main_timeframe = investment_config['timeframe']
+        analysis_timeframes = investment_config['analysis_timeframes']
+        
+        # Lấy dữ liệu khung thời gian chính
+        df_main = self.get_kline_data(symbol, main_timeframe, 200)
+        if df_main is None:
+            return None
+        
+        df_main = self.calculate_advanced_indicators(df_main)
+        if df_main is None:
+            return None
+        
+        # Kiểm tra kết quả dự đoán trước đó
+        current_price = df_main.iloc[-1]['close']
+        prediction_results = self.tracker.check_predictions(symbol, current_price)
+        
+        # Phân tích xu hướng và volume đa khung thời gian
+        trends = {}
+        volume_analysis = {}
+        
+        for tf in analysis_timeframes:
+            df = self.get_kline_data(symbol, tf, 100)
+            if df is not None:
+                df = self.calculate_advanced_indicators(df)
+                if df is not None and len(df) > 0:
+                    latest = df.iloc[-1]
+                    prev = df.iloc[-2] if len(df) > 1 else latest
+                    
+                    # Phân tích xu hướng giá
+                    if not pd.isna(latest['EMA_10']) and not pd.isna(latest['EMA_20']):
+                        if latest['EMA_10'] > latest['EMA_20'] and latest['close'] > latest['EMA_10']:
+                            price_trend = 'UPTREND'
+                        elif latest['EMA_10'] < latest['EMA_20'] and latest['close'] < latest['EMA_10']:
+                            price_trend = 'DOWNTREND'
+                        else:
+                            price_trend = 'SIDEWAYS'
+                    else:
+                        price_trend = 'UNKNOWN'
+                    
+                    trends[tf] = price_trend
+                    
+                    # Phân tích volume
+                    if not pd.isna(latest['volume_ratio']):
+                        if latest['volume_ratio'] > 2.0:
+                            volume_trend = 'HIGH'
+                        elif latest['volume_ratio'] > 1.5:
+                            volume_trend = 'ELEVATED'
+                        elif latest['volume_ratio'] > 0.8:
+                            volume_trend = 'NORMAL'
+                        else:
+                            volume_trend = 'LOW'
+                        
+                        price_change = ((latest['close'] - prev['close']) / prev['close']) * 100
+                        volume_analysis[tf] = {
+                            'trend': volume_trend,
+                            'ratio': latest['volume_ratio'],
+                            'price_change': price_change
+                        }
+            
+            time.sleep(0.5)  # Rate limit
+        
+        # Tính điểm tín hiệu nâng cao
+        buy_score, sell_score, signals = self.calculate_enhanced_signal_score(df_main)
+        
+        latest = df_main.iloc[-1]
+        
+        # Dự đoán xác suất thành công
+        success_prob, signal_type, trend_strength = self.predict_enhanced_probability(
+            buy_score, sell_score, trends, latest['RSI'], latest['volume_ratio'], volume_analysis
+        )
+        
+        # Entry price = current price
+        entry_price = current_price
+
+        # Tính TP/SL dựa trên investment_type
+        tp1, tp2, stop_loss = self.calculate_tp_sl_by_investment_type(
+            entry_price, signal_type, latest['ATR'], trend_strength, investment_type
+        )
+        
+        # Risk/Reward ratio - chỉ tính cho BUY
+        if signal_type == 'BUY':
+            rr_ratio = (tp1 - entry_price) / (entry_price - stop_loss)
+        else:  # WAIT
+            rr_ratio = 0  # Không trade
+        
+        result = {
+            'symbol': symbol,
+            'investment_type': investment_type,
+            'timeframe': main_timeframe,
+            'hold_duration': investment_config['hold_duration'],
+            'current_price': current_price,
+            'entry_price': entry_price,
+            'signal_type': signal_type,
+            'buy_score': buy_score,
+            'sell_score': sell_score,
+            'success_probability': success_prob,
+            'trends': trends,
+            'trend_strength': trend_strength,
+            'tp1': tp1,
+            'tp2': tp2,
+            'stop_loss': stop_loss,
+            'rr_ratio': rr_ratio,
+            'rsi': latest['RSI'],
+            'atr': latest['ATR'],
+            'signals': signals,
+            'entry_quality': 'HIGH' if success_prob > 0.75 else 'MEDIUM' if success_prob > 0.6 else 'LOW',
+            'prediction_results': prediction_results,
+            'volume_analysis': volume_analysis,
+        }
+        
+        # Lưu dự đoán mới
+        prediction_data = {
+            'current_price': current_price,
+            'entry_price': entry_price,
+            'signal_type': signal_type,
+            'success_probability': success_prob,
+            'tp1': tp1,
+            'tp2': tp2,
+            'stop_loss': stop_loss,
+            'trend_strength': trend_strength,
+            'entry_quality': result['entry_quality'],
+            'investment_type': investment_type
+        }
+        self.tracker.add_prediction(symbol, prediction_data)
+        
+        return result
+    
     def analyze_single_pair_enhanced(self, symbol):
         """Phân tích nâng cao một cặp coin"""
         #print(f"{Fore.BLUE}📊 Analyzing {symbol}...{Style.RESET_ALL}")
@@ -578,6 +759,45 @@ class EnhancedCryptoPredictionAppV2:
         """Hiển thị lịch sử dự đoán - đã tắt"""
         pass
     
+    def run_multi_timeframe_analysis(self):
+        """Chạy phân tích cho tất cả các kiểu đầu tư (60m, 4h, 1d)"""
+        all_results = {}
+        
+        print(f"\n{Fore.YELLOW}{Style.BRIGHT}🎯 GỢI Ý COIN TỐT NHẤT CHO TỪNG KHUNG THỜI GIAN{Style.RESET_ALL}")
+        print("=" * 70)
+        
+        for investment_type in ['60m', '4h', '1d']:
+            results = []
+            
+            for pair in self.pairs:
+                try:
+                    result = self.analyze_single_pair_by_investment_type(pair, investment_type)
+                    if result:
+                        results.append(result)
+                    time.sleep(1)  # Rate limit protection
+                except Exception as e:
+                    print(f"{Fore.RED}❌ Error analyzing {pair} for {investment_type}: {e}{Style.RESET_ALL}")
+            
+            # Sort by success probability
+            results.sort(key=lambda x: x['success_probability'], reverse=True)
+            all_results[investment_type] = results
+            
+            # Display simple recommendation
+            if results:
+                best = results[0]
+                
+                print(f"\n{Fore.CYAN}📈 {investment_type.upper()} ({self.investment_types[investment_type]['hold_duration']}){Style.RESET_ALL}")
+                print(f"Coin: {Fore.YELLOW}{best['symbol']}{Style.RESET_ALL}")
+                print(f"Giá vào lệnh: {Fore.GREEN}{best['entry_price']:.6f}{Style.RESET_ALL}")
+                print(f"SL: {Fore.RED}{best['stop_loss']:.6f}{Style.RESET_ALL}")
+                print(f"TP1: {Fore.GREEN}{best['tp1']:.6f}{Style.RESET_ALL}")
+                print(f"TP2: {Fore.GREEN}{best['tp2']:.6f}{Style.RESET_ALL}")
+                print(f"Tỷ lệ chính xác: {Fore.YELLOW}{best['success_probability']:.1%}{Style.RESET_ALL}")
+        
+        print(f"\n{Fore.BLUE}⏰ Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
+        
+        return all_results
+
     def run_enhanced_analysis(self):
         """Chạy phân tích nâng cao"""
         results = []
@@ -600,139 +820,66 @@ class EnhancedCryptoPredictionAppV2:
         # Best recommendation
         if results:
             best = results[0]
-            print(f"\n{Fore.YELLOW}{Style.BRIGHT}🏆 TOP RECOMMENDATION{Style.RESET_ALL}")
-            print("-" * 60)
-            print(f"{Fore.WHITE}Symbol: {Fore.CYAN}{best['symbol']}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Current Price: {Fore.YELLOW}{best['current_price']:.6f}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Entry Price: {Fore.YELLOW}{best['entry_price']:.6f}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Signal: {Fore.GREEN if best['signal_type'] == 'BUY' else Fore.RED}{best['signal_type']}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Probability: {Fore.YELLOW}{best['success_probability']:.1%}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Quality: {Fore.GREEN if best['entry_quality'] == 'HIGH' else Fore.YELLOW if best['entry_quality'] == 'MEDIUM' else Fore.RED}{best['entry_quality']}{Style.RESET_ALL}")
-            
-            # Volume analysis summary
-            vol_summary = []
-            for tf, vol_data in best['volume_analysis'].items():
-                if vol_data['trend'] in ['HIGH', 'ELEVATED']:
-                    vol_summary.append(f"{tf}:{vol_data['trend']}")
-            if vol_summary:
-                print(f"{Fore.WHITE}Volume: {Fore.MAGENTA}{', '.join(vol_summary)}{Style.RESET_ALL}")
-            
-            # Entry vs Current và Trading Instructions
-            if best['signal_type'] == 'BUY':
-                entry_diff = ((best['entry_price']/best['current_price']-1)*100)
-                tp1_pct = ((best['tp1']/best['entry_price']-1)*100)
-                tp2_pct = ((best['tp2']/best['entry_price']-1)*100)
-                sl_pct = ((1-best['stop_loss']/best['entry_price'])*100)
-                
-                print(f"{Fore.WHITE}Entry vs Current: {Fore.CYAN}{entry_diff:+.2f}%{Style.RESET_ALL}")
-                print(f"{Fore.GREEN}🔸 Entry: MUA SPOT tại {best['entry_price']:.6f}{Style.RESET_ALL}")
-                print(f"{Fore.GREEN}🎯 TP1: BÁN 50% tại {best['tp1']:.6f} (+{tp1_pct:.2f}% lãi){Style.RESET_ALL}")
-                print(f"{Fore.GREEN}🎯 TP2: BÁN 50% còn lại tại {best['tp2']:.6f} (+{tp2_pct:.2f}% lãi){Style.RESET_ALL}")
-                print(f"{Fore.RED}🛑 SL: BÁN TẤT CẢ tại {best['stop_loss']:.6f} (-{sl_pct:.2f}% lỗ){Style.RESET_ALL}")
-                
-            else:  # WAIT
-                entry_diff = ((best['entry_price']/best['current_price']-1)*100)
-                
-                print(f"{Fore.WHITE}Entry vs Current: {Fore.CYAN}{entry_diff:+.2f}%{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}⏳ Tín hiệu: CHỜ THỜI ĐIỂM TỐT HƠN{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}💡 Chờ mua tại: {best['entry_price']:.6f} (giảm {abs(entry_diff):.2f}%){Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}📊 Hoặc chờ tín hiệu tốt hơn trong 30-45 phút{Style.RESET_ALL}")
-            
-            # Active signals
-            active_signals = [k for k, v in best['signals'].items() if v]
-            if active_signals:
-                print(f"{Fore.WHITE}Active Signals: {Fore.MAGENTA}{', '.join(active_signals[:3])}{Style.RESET_ALL}")
-            
-            # Recommendation cho SPOT TRADING
-            if best['signal_type'] == 'BUY':
-                if best['success_probability'] > 0.75:
-                    print(f"{Fore.GREEN}✅ TÍN HIỆU MUA MẠNH - Khuyến nghị mua spot{Style.RESET_ALL}")
-                elif best['success_probability'] > 0.6:
-                    print(f"{Fore.YELLOW}⚠️  TÍN HIỆU MUA VỪA - Cân nhắc mua với volume nhỏ{Style.RESET_ALL}")
-                elif best['success_probability'] > 0.3:
-                    print(f"{Fore.YELLOW}🤔 TÍN HIỆU MUA YẾU - Chờ xác nhận thêm{Style.RESET_ALL}")
-                else:
-                    print(f"{Fore.RED}❌ TÍN HIỆU MUA RẤT YẾU - Không nên mua{Style.RESET_ALL}")
-            else:  # WAIT
-                print(f"{Fore.YELLOW}⏳ CHƯA CÓ CỚ HỘI TỐT - Chờ thị trường tích cực hơn{Style.RESET_ALL}")
-                print(f"{Fore.BLUE}💡 Tip: Theo dõi trong 30-45 phút để tìm tín hiệu mua tốt{Style.RESET_ALL}")
+            print(f"\n{Fore.YELLOW}{Style.BRIGHT}� COIN TỐT NHẤT (60m){Style.RESET_ALL}")
+            print("=" * 40)
+            print(f"Coin: {Fore.YELLOW}{best['symbol']}{Style.RESET_ALL}")
+            print(f"Giá vào lệnh: {Fore.GREEN}{best['entry_price']:.6f}{Style.RESET_ALL}")
+            print(f"SL: {Fore.RED}{best['stop_loss']:.6f}{Style.RESET_ALL}")
+            print(f"TP1: {Fore.GREEN}{best['tp1']:.6f}{Style.RESET_ALL}")
+            print(f"TP2: {Fore.GREEN}{best['tp2']:.6f}{Style.RESET_ALL}")
+            print(f"Tỷ lệ chính xác: {Fore.YELLOW}{best['success_probability']:.1%}{Style.RESET_ALL}")
         
-        print(f"\n{Fore.BLUE}⏰ Analysis completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}💡 Next update recommended in 30-45 minutes for optimal accuracy{Style.RESET_ALL}")
-        
-        return results
-        
-        # Display results
-        # print(f"\n{Fore.CYAN}{Style.BRIGHT}📊 ANALYSIS RESULTS{Style.RESET_ALL}")
-        # print("=" * 140)
-        # print(self.create_results_table(results))
-        
-        # Best recommendation
-        if results:
-            best = results[0]
-            print(f"\n{Fore.YELLOW}{Style.BRIGHT}🏆 TOP RECOMMENDATION{Style.RESET_ALL}")
-            print("-" * 60)
-            print(f"{Fore.WHITE}Symbol: {Fore.CYAN}{best['symbol']}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Current Price: {Fore.YELLOW}{best['current_price']:.6f}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Entry Price: {Fore.YELLOW}{best['entry_price']:.6f}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Signal: {Fore.GREEN if best['signal_type'] == 'BUY' else Fore.RED}{best['signal_type']}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Probability: {Fore.YELLOW}{best['success_probability']:.1%}{Style.RESET_ALL}")
-            print(f"{Fore.WHITE}Quality: {Fore.GREEN if best['entry_quality'] == 'HIGH' else Fore.YELLOW if best['entry_quality'] == 'MEDIUM' else Fore.RED}{best['entry_quality']}{Style.RESET_ALL}")
-            #print(f"{Fore.WHITE}R/R Ratio: {Fore.CYAN}{best['rr_ratio']:.2f}{Style.RESET_ALL}")
-            
-            # Entry vs Current và Trading Instructions
-            if best['signal_type'] == 'BUY':
-                entry_diff = ((best['entry_price']/best['current_price']-1)*100)
-                tp1_pct = ((best['tp1']/best['entry_price']-1)*100)
-                tp2_pct = ((best['tp2']/best['entry_price']-1)*100)
-                sl_pct = ((1-best['stop_loss']/best['entry_price'])*100)
-                
-                print(f"{Fore.WHITE}Entry vs Current: {Fore.CYAN}{entry_diff:+.2f}%{Style.RESET_ALL}")
-                print(f"{Fore.GREEN}🔸 Entry: MUA SPOT tại {best['entry_price']:.6f}{Style.RESET_ALL}")
-                print(f"{Fore.GREEN}🎯 TP1: BÁN 50% tại {best['tp1']:.6f} (+{tp1_pct:.2f}% lãi){Style.RESET_ALL}")
-                print(f"{Fore.GREEN}🎯 TP2: BÁN 50% còn lại tại {best['tp2']:.6f} (+{tp2_pct:.2f}% lãi){Style.RESET_ALL}")
-                print(f"{Fore.RED}🛑 SL: BÁN TẤT CẢ tại {best['stop_loss']:.6f} (-{sl_pct:.2f}% lỗ){Style.RESET_ALL}")
-                
-            else:  # WAIT
-                entry_diff = ((best['entry_price']/best['current_price']-1)*100)
-                
-                print(f"{Fore.WHITE}Entry vs Current: {Fore.CYAN}{entry_diff:+.2f}%{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}⏳ Tín hiệu: CHỜ THỜI ĐIỂM TỐT HỚN{Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}💡 Chờ mua tại: {best['entry_price']:.6f} (giảm {abs(entry_diff):.2f}%){Style.RESET_ALL}")
-                print(f"{Fore.YELLOW}📊 Hoặc chờ tín hiệu tốt hơn trong 30-45 phút{Style.RESET_ALL}")
-            
-            # Active signals
-            active_signals = [k for k, v in best['signals'].items() if v]
-            if active_signals:
-                print(f"{Fore.WHITE}Active Signals: {Fore.MAGENTA}{', '.join(active_signals[:3])}{Style.RESET_ALL}")
-            
-            # Recommendation cho SPOT TRADING
-            if best['signal_type'] == 'BUY':
-                if best['success_probability'] > 0.75:
-                    print(f"{Fore.GREEN}✅ TÍN HIỆU MUA MẠNH - Khuyến nghị mua spot{Style.RESET_ALL}")
-                elif best['success_probability'] > 0.6:
-                    print(f"{Fore.YELLOW}⚠️  TÍN HIỆU MUA VỪA - Cân nhắc mua với volume nhỏ{Style.RESET_ALL}")
-                elif best['success_probability'] > 0.3:
-                    print(f"{Fore.YELLOW}🤔 TÍN HIỆU MUA YẾU - Chờ xác nhận thêm{Style.RESET_ALL}")
-                else:
-                    print(f"{Fore.RED}❌ TÍN HIỆU MUA RẤT YẾU - Không nên mua{Style.RESET_ALL}")
-            else:  # WAIT
-                print(f"{Fore.YELLOW}⏳ CHƯA CÓ CỚ HỘI TỐT - Chờ thị trường tích cực hơn{Style.RESET_ALL}")
-                print(f"{Fore.BLUE}💡 Tip: Theo dõi trong 30-45 phút để tìm tín hiệu mua tốt{Style.RESET_ALL}")
-        
-        print(f"\n{Fore.BLUE}⏰ Analysis completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
-        print(f"{Fore.GREEN}💡 Next update recommended in 30-45 minutes for optimal accuracy{Style.RESET_ALL}")
+        print(f"\n{Fore.BLUE}⏰ Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
         
         return results
 
 def main():
+    import sys
+    
     try:
         app = EnhancedCryptoPredictionAppV2()
-        results = app.run_enhanced_analysis()
+        
+        # Kiểm tra arguments để chọn loại phân tích
+        if len(sys.argv) > 1 and sys.argv[1] in ['60m', '4h', '1d']:
+            # Phân tích cho một kiểu đầu tư cụ thể
+            investment_type = sys.argv[1]
+            print(f"{Fore.CYAN}🎯 Chạy phân tích chuyên biệt cho {investment_type.upper()}{Style.RESET_ALL}")
+            
+            results = []
+            for pair in app.pairs:
+                result = app.analyze_single_pair_by_investment_type(pair, investment_type)
+                if result:
+                    results.append(result)
+                time.sleep(1)
+            
+            # Hiển thị kết quả
+            if results:
+                results.sort(key=lambda x: x['success_probability'], reverse=True)
+                best = results[0]
+                print(f"\n{Fore.YELLOW}{Style.BRIGHT}🏆 TOP {investment_type.upper()} RECOMMENDATION{Style.RESET_ALL}")
+                print(f"Symbol: {best['symbol']} | Signal: {best['signal_type']} | Probability: {best['success_probability']:.1%}")
+                
+        elif len(sys.argv) > 1 and sys.argv[1] == '--multi':
+            # Phân tích tất cả các kiểu đầu tư
+            all_results = app.run_multi_timeframe_analysis()
+            
+        else:
+            # Mặc định: chạy phân tích 60m (backward compatibility)
+            results = app.run_enhanced_analysis()
+            
     except KeyboardInterrupt:
         print(f"\n{Fore.YELLOW}🛑 Analysis interrupted by user{Style.RESET_ALL}")
     except Exception as e:
         print(f"\n{Fore.RED}❌ Critical error: {e}{Style.RESET_ALL}")
+
+def main_multi_timeframe():
+    """Chạy phân tích đa khung thời gian - function riêng cho dễ gọi"""
+    try:
+        app = EnhancedCryptoPredictionAppV2()
+        return app.run_multi_timeframe_analysis()
+    except Exception as e:
+        print(f"\n{Fore.RED}❌ Critical error: {e}{Style.RESET_ALL}")
+        return None
 
 if __name__ == "__main__":
     main()
