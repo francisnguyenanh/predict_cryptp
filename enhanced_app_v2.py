@@ -22,44 +22,24 @@ colorama.init()
 class PredictionTracker:
     """Class để theo dõi và đánh giá kết quả dự đoán"""
     
-    def __init__(self, data_file="prediction_history.json"):
-        self.data_file = data_file
-        self.predictions = self.load_predictions()
+    def __init__(self):
+        self.predictions = {}
     
     def load_predictions(self):
-        """Load lịch sử dự đoán"""
-        try:
-            if os.path.exists(self.data_file):
-                with open(self.data_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            return {}
-        except Exception as e:
-            print(f"❌ Error loading predictions: {e}")
-            return {}
+        return {}
     
     def save_predictions(self):
-        """Lưu lịch sử dự đoán"""
-        try:
-            with open(self.data_file, 'w', encoding='utf-8') as f:
-                json.dump(self.predictions, f, indent=2, ensure_ascii=False)
-        except Exception as e:
-            print(f"❌ Error saving predictions: {e}")
+        pass
     
     def add_prediction(self, symbol, prediction_data):
-        """Thêm dự đoán mới"""
         if symbol not in self.predictions:
             self.predictions[symbol] = []
-        
         prediction_data['timestamp'] = datetime.now().isoformat()
-        prediction_data['status'] = 'PENDING'  # PENDING, HIT_TP1, HIT_TP2, HIT_SL, EXPIRED
-        
+        prediction_data['status'] = 'PENDING'
         self.predictions[symbol].append(prediction_data)
-        
-        # Giữ chỉ 50 predictions gần nhất cho mỗi symbol
         if len(self.predictions[symbol]) > 50:
             self.predictions[symbol] = self.predictions[symbol][-50:]
-        
-        self.save_predictions()
+        # Không lưu ra file
     
     def check_predictions(self, symbol, current_price):
         """Kiểm tra kết quả các dự đoán và tính accuracy mới"""
