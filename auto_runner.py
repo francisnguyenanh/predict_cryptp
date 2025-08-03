@@ -17,16 +17,16 @@ class AutoRunner:
     def run_analysis_job(self):
         """Chạy phân tích và lưu kết quả"""
         try:
-            print(f"\n{'='*60}")
-            print(f"🔄 AUTO RUN - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"{'='*60}")
+            # print(f"\n{'='*60}")
+            # print(f"🔄 AUTO RUN - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            # print(f"{'='*60}")
             
             results = self.app.run_enhanced_analysis()
             
             # Lưu kết quả vào file log
-            self.save_results_to_log(results)
+            #self.save_results_to_log(results)
             
-            print(f"\n✅ Phân tích hoàn thành - Chờ {self.interval_minutes} phút cho lần tiếp theo...")
+            #print(f"\n✅ Phân tích hoàn thành - Chờ {self.interval_minutes} phút cho lần tiếp theo...")
             
         except Exception as e:
             print(f"❌ Lỗi trong quá trình phân tích: {e}")
@@ -84,28 +84,10 @@ class AutoRunner:
         except Exception as e:
             print(f"❌ Lỗi khi lưu log: {e}")
     
-    def start_auto_mode(self):
-        """Bắt đầu chế độ tự động"""
-        print(f"🤖 BẮT ĐẦU CHẠY TỰ ĐỘNG - Chu kỳ {self.interval_minutes} phút")
-        print("📋 Các cặp coin được theo dõi:", ", ".join(self.app.pairs))
-        print("⏰ Bấm Ctrl+C để dừng\n")
-        
-        # Chạy lần đầu ngay lập tức
-        self.run_analysis_job()
-        
-        # Lên lịch chạy định kỳ
-        schedule.every(self.interval_minutes).minutes.do(self.run_analysis_job)
-        
-        try:
-            while True:
-                schedule.run_pending()
-                time.sleep(60)  # Kiểm tra mỗi phút
-        except KeyboardInterrupt:
-            print("\n🛑 Dừng chạy tự động")
+    # Đã loại bỏ chức năng chạy tự động theo interval
+    pass
     
     def run_once(self):
-        """Chạy một lần duy nhất"""
-        print("🔍 CHẠY PHÂN TÍCH MỘT LẦN")
         self.run_analysis_job()
 
 def main():
@@ -127,10 +109,10 @@ def main():
                 print("❌ Interval phải là số nguyên (phút)")
         else:
             print("Usage:")
-            print("  python auto_runner.py --once           # Chạy một lần")
-            print("  python auto_runner.py --auto           # Chạy tự động mỗi 35 phút (tối ưu)")
-            print("  python auto_runner.py --interval 30    # Chạy tự động mỗi 30 phút")
-            print("  python auto_runner.py --interval 45    # Chạy tự động mỗi 45 phút")
+            # print("  python auto_runner.py --once           # Chạy một lần")
+            # print("  python auto_runner.py --auto           # Chạy tự động mỗi 35 phút (tối ưu)")
+            # print("  python auto_runner.py --interval 30    # Chạy tự động mỗi 30 phút")
+            # print("  python auto_runner.py --interval 45    # Chạy tự động mỗi 45 phút")
     else:
         # Mặc định chạy một lần
         runner.run_once()
