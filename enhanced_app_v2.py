@@ -8,7 +8,7 @@ import numpy as np
 import requests
 import time
 from datetime import datetime, timedelta
-import talib
+# Sử dụng các hàm technical indicators tự viết thay vì thư viện ngoài
 import warnings
 import os
 import json
@@ -213,21 +213,45 @@ class EnhancedCryptoPredictionAppV2:
             return None
             
         try:
-            # Moving Averages
-            df['EMA_10'] = talib.EMA(df['close'], timeperiod=10)
-            df['EMA_20'] = talib.EMA(df['close'], timeperiod=20)
-            df['EMA_50'] = talib.EMA(df['close'], timeperiod=50)
+            # Moving Averages - sử dụng pandas
+            df['EMA_10'] = df['close'].ewm(span=10, adjust=False).mean()
+            df['EMA_20'] = df['close'].ewm(span=20, adjust=False).mean()
+            df['EMA_50'] = df['close'].ewm(span=50, adjust=False).mean()
             
-            # Momentum Indicators
-            df['RSI'] = talib.RSI(df['close'], timeperiod=14)
-            df['MACD'], df['MACD_signal'], df['MACD_hist'] = talib.MACD(df['close'])
+            # RSI - tự viết
+            def calculate_rsi(series, period=14):
+                delta = series.diff()
+                gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+                loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+                rs = gain / loss
+                rsi = 100 - (100 / (1 + rs))
+                return rsi
             
-            # Volatility Indicators
-            df['BB_upper'], df['BB_middle'], df['BB_lower'] = talib.BBANDS(df['close'])
-            df['ATR'] = talib.ATR(df['high'], df['low'], df['close'], timeperiod=14)
+            df['RSI'] = calculate_rsi(df['close'])
             
-            # Volume Indicators
-            df['volume_sma'] = talib.SMA(df['volume'], timeperiod=20)
+            # MACD - tự viết
+            exp1 = df['close'].ewm(span=12, adjust=False).mean()
+            exp2 = df['close'].ewm(span=26, adjust=False).mean()
+            df['MACD'] = exp1 - exp2
+            df['MACD_signal'] = df['MACD'].ewm(span=9, adjust=False).mean()
+            df['MACD_hist'] = df['MACD'] - df['MACD_signal']
+            
+            # Bollinger Bands - tự viết
+            df['BB_middle'] = df['close'].rolling(window=20).mean()
+            bb_std = df['close'].rolling(window=20).std()
+            df['BB_upper'] = df['BB_middle'] + (bb_std * 2)
+            df['BB_lower'] = df['BB_middle'] - (bb_std * 2)
+            
+            # ATR - tự viết (simplified)
+            df['tr1'] = df['high'] - df['low']
+            df['tr2'] = abs(df['high'] - df['close'].shift())
+            df['tr3'] = abs(df['low'] - df['close'].shift())
+            df['true_range'] = df[['tr1', 'tr2', 'tr3']].max(axis=1)
+            df['ATR'] = df['true_range'].rolling(window=14).mean()
+            df.drop(['tr1', 'tr2', 'tr3', 'true_range'], axis=1, inplace=True)
+            
+            # Volume Indicators - sử dụng pandas
+            df['volume_sma'] = df['volume'].rolling(window=20).mean()
             df['volume_ratio'] = df['volume'] / df['volume_sma']
             
             # Support/Resistance
