@@ -234,90 +234,264 @@ class EnhancedCryptoPredictionAppV2:
             df['resistance'] = df['high'].rolling(window=20).max()
             df['support'] = df['low'].rolling(window=20).min()
             
+            # === NEW ADVANCED INDICATORS ===
+            
+            # Ichimoku Cloud Components
+            high9 = df['high'].rolling(window=9).max()
+            low9 = df['low'].rolling(window=9).min()
+            df['tenkan_sen'] = (high9 + low9) / 2
+            
+            high26 = df['high'].rolling(window=26).max()
+            low26 = df['low'].rolling(window=26).min()
+            df['kijun_sen'] = (high26 + low26) / 2
+            
+            df['senkou_span_a'] = ((df['tenkan_sen'] + df['kijun_sen']) / 2).shift(26)
+            
+            high52 = df['high'].rolling(window=52).max()
+            low52 = df['low'].rolling(window=52).min()
+            df['senkou_span_b'] = ((high52 + low52) / 2).shift(26)
+            
+            df['chikou_span'] = df['close'].shift(-26)
+            
+            # Stochastic Oscillator
+            df['stoch_k'], df['stoch_d'] = talib.STOCH(df['high'], df['low'], df['close'], 
+                                                      fastk_period=14, slowk_period=3, slowd_period=3)
+            
+            # On-Balance Volume (OBV)
+            df['OBV'] = talib.OBV(df['close'], df['volume'])
+            df['OBV_sma'] = talib.SMA(df['OBV'], timeperiod=20)
+            
+            # Average Directional Index (ADX) - Đo sức mạnh xu hướng
+            df['ADX'] = talib.ADX(df['high'], df['low'], df['close'], timeperiod=14)
+            df['DI_plus'] = talib.PLUS_DI(df['high'], df['low'], df['close'], timeperiod=14)
+            df['DI_minus'] = talib.MINUS_DI(df['high'], df['low'], df['close'], timeperiod=14)
+            
+            # Bollinger Band Width (để phát hiện thị trường sideway)
+            df['BB_width'] = (df['BB_upper'] - df['BB_lower']) / df['BB_middle']
+            df['BB_width_sma'] = df['BB_width'].rolling(window=20).mean()
+            
+            # Fibonacci Retracement Levels (tự động tính)
+            df = self.calculate_fibonacci_levels(df)
+            
+            # Candlestick Pattern Recognition
+            df = self.detect_candlestick_patterns(df)
+            
             return df
             
         except Exception as e:
             print(f"{Fore.RED}❌ Indicator calculation error: {e}{Style.RESET_ALL}")
             return None
     
+    def calculate_fibonacci_levels(self, df):
+        """Tự động tính các mức Fibonacci Retracement"""
+        try:
+            # Tìm high và low trong 50 periods gần nhất
+            recent_high = df['high'].rolling(window=50).max().iloc[-1]
+            recent_low = df['low'].rolling(window=50).min().iloc[-1]
+            
+            if pd.isna(recent_high) or pd.isna(recent_low):
+                df['fib_236'] = df['close']
+                df['fib_382'] = df['close'] 
+                df['fib_500'] = df['close']
+                df['fib_618'] = df['close']
+                return df
+            
+            # Tính các mức Fibonacci
+            diff = recent_high - recent_low
+            df['fib_236'] = recent_high - (diff * 0.236)
+            df['fib_382'] = recent_high - (diff * 0.382)
+            df['fib_500'] = recent_high - (diff * 0.500)
+            df['fib_618'] = recent_high - (diff * 0.618)
+            
+            return df
+        except Exception:
+            # Fallback values
+            df['fib_236'] = df['close']
+            df['fib_382'] = df['close']
+            df['fib_500'] = df['close'] 
+            df['fib_618'] = df['close']
+            return df
+    
+    def detect_candlestick_patterns(self, df):
+        """Phát hiện các mô hình nến quan trọng"""
+        try:
+            # Bullish patterns
+            df['hammer'] = talib.CDLHAMMER(df['open'], df['high'], df['low'], df['close'])
+            df['engulfing_bullish'] = talib.CDLENGULFING(df['open'], df['high'], df['low'], df['close'])
+            df['morning_star'] = talib.CDLMORNINGSTAR(df['open'], df['high'], df['low'], df['close'])
+            
+            # Bearish patterns  
+            df['hanging_man'] = talib.CDLHANGINGMAN(df['open'], df['high'], df['low'], df['close'])
+            df['evening_star'] = talib.CDLEVENINGSTAR(df['open'], df['high'], df['low'], df['close'])
+            
+            # Reversal patterns
+            df['doji'] = talib.CDLDOJI(df['open'], df['high'], df['low'], df['close'])
+            
+            return df
+        except Exception:
+            # Fallback - set all pattern columns to 0
+            pattern_cols = ['hammer', 'engulfing_bullish', 'morning_star', 'hanging_man', 'evening_star', 'doji']
+            for col in pattern_cols:
+                df[col] = 0
+            return df
+    
 
-    def calculate_tp_sl_by_investment_type(self, entry_price, signal_type, atr_value, trend_strength, investment_type='60m'):
-        """Tính toán TP/SL theo kiểu đầu tư (60m, 4h, 1d)"""
+    def calculate_tp_sl_by_investment_type(self, entry_price, signal_type, atr_value, trend_strength, investment_type='60m', df_main=None):
+        """Tính toán TP/SL theo kiểu đầu tư với Fibonacci và Pivot Points"""
         
-        # Điều chỉnh multiplier theo kiểu đầu tư
+        # Base multipliers theo investment type
         if investment_type == '60m':
-            # Scalping/Short-term (giữ 60 phút)
             if trend_strength == "STRONG_UP":
-                # Tăng TP cho STRONG_UP để tận dụng momentum
-                tp1_multiplier = 2.8  # Tăng từ 2.5 → 2.8
-                tp2_multiplier = 4.5  # Tăng từ 4.0 → 4.5
+                tp1_multiplier = 2.8
+                tp2_multiplier = 4.5
                 sl_multiplier = 1.5
             elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
-                # Giảm TP cho trend yếu/đảo chiều
-                tp1_multiplier = 1.2  # Giảm từ 1.5 → 1.2
-                tp2_multiplier = 2.0  # Giảm từ 2.5 → 2.0
+                tp1_multiplier = 1.2
+                tp2_multiplier = 2.0
                 sl_multiplier = 1.0
             else:
-                # Giảm TP cho MIXED/Sideway (trend yếu)
-                tp1_multiplier = 1.8  # Giảm từ 2.0 → 1.8
-                tp2_multiplier = 2.8  # Giảm từ 3.0 → 2.8
+                tp1_multiplier = 1.8
+                tp2_multiplier = 2.8
                 sl_multiplier = 1.2
                 
         elif investment_type == '4h':
-            # Swing trading (giữ 4 giờ) - Điều chỉnh TP phù hợp với xu hướng
             if trend_strength == "STRONG_UP":
-                # Tăng TP cho STRONG_UP để tận dụng momentum mạnh
-                tp1_multiplier = 4.2  # Tăng từ 3.5 → 4.2
-                tp2_multiplier = 6.5  # Tăng từ 5.5 → 6.5
+                tp1_multiplier = 4.2
+                tp2_multiplier = 6.5
                 sl_multiplier = 1.8
             elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
-                # Giảm TP cho trend yếu/đảo chiều
-                tp1_multiplier = 1.6  # Giảm từ 2.0 → 1.6
-                tp2_multiplier = 2.6  # Giảm từ 3.2 → 2.6
+                tp1_multiplier = 1.6
+                tp2_multiplier = 2.6
                 sl_multiplier = 1.3
             else:
-                # Giảm TP cho Sideway/MIXED (trend yếu)
-                tp1_multiplier = 2.3  # Giảm từ 2.8 → 2.3
-                tp2_multiplier = 3.6  # Giảm từ 4.2 → 3.6
+                tp1_multiplier = 2.3
+                tp2_multiplier = 3.6
                 sl_multiplier = 1.5
                 
         elif investment_type == '1d':
-            # Position trading (giữ 1 ngày) - TP phù hợp với xu hướng dài hạn
             if trend_strength == "STRONG_UP":
-                # Tăng TP cho STRONG_UP để tận dụng xu hướng dài hạn mạnh
-                tp1_multiplier = 5.5  # Tăng từ 4.5 → 5.5
-                tp2_multiplier = 9.0  # Tăng từ 7.5 → 9.0
+                tp1_multiplier = 5.5
+                tp2_multiplier = 9.0
                 sl_multiplier = 2.2
             elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
-                # Giảm TP cho trend yếu/đảo chiều
-                tp1_multiplier = 2.2  # Giảm từ 2.8 → 2.2
-                tp2_multiplier = 3.6  # Giảm từ 4.5 → 3.6
+                tp1_multiplier = 2.2
+                tp2_multiplier = 3.6
                 sl_multiplier = 1.8
             else:
-                # Giảm TP cho Sideway/MIXED (trend yếu)
-                tp1_multiplier = 3.0  # Giảm từ 3.5 → 3.0
-                tp2_multiplier = 5.2  # Giảm từ 6.0 → 5.2
+                tp1_multiplier = 3.0
+                tp2_multiplier = 5.2
                 sl_multiplier = 2.0
         
+        # Basic TP/SL calculation
         if signal_type == 'BUY':
-            # SPOT BUY: Mua thấp, bán cao
-            tp1 = entry_price + (atr_value * tp1_multiplier)
-            tp2 = entry_price + (atr_value * tp2_multiplier)
-            stop_loss = entry_price - (atr_value * sl_multiplier)
+            base_tp1 = entry_price + (atr_value * tp1_multiplier)
+            base_tp2 = entry_price + (atr_value * tp2_multiplier)
+            base_sl = entry_price - (atr_value * sl_multiplier)
         else:  # WAIT
-            # Không trade, đặt level thấp để chờ
-            tp1 = entry_price + (atr_value * 1.0)
-            tp2 = entry_price + (atr_value * 2.0)
-            stop_loss = entry_price - (atr_value * 0.5)
+            base_tp1 = entry_price + (atr_value * 1.0)
+            base_tp2 = entry_price + (atr_value * 2.0)
+            base_sl = entry_price - (atr_value * 0.5)
+        
+        # === ENHANCED TP/SL WITH FIBONACCI & TECHNICAL LEVELS ===
+        
+        if df_main is not None and len(df_main) > 0 and signal_type == 'BUY':
+            latest = df_main.iloc[-1]
+            
+            # Fibonacci-based TP adjustment
+            if not pd.isna(latest['fib_236']) and not pd.isna(latest['fib_618']):
+                # TP1: Aim for next Fibonacci level above entry
+                fib_levels = [latest['fib_236'], latest['fib_382'], latest['fib_500'], latest['fib_618']]
+                fib_levels.sort()
+                
+                # Find next Fibonacci resistance above entry price
+                next_fib_resistance = None
+                for fib_level in fib_levels:
+                    if fib_level > entry_price * 1.005:  # At least 0.5% above entry
+                        next_fib_resistance = fib_level
+                        break
+                
+                if next_fib_resistance:
+                    # Adjust TP1 to Fibonacci level if it's reasonable
+                    fib_tp1 = next_fib_resistance
+                    if entry_price * 1.01 <= fib_tp1 <= entry_price * 1.15:  # 1-15% range
+                        base_tp1 = (base_tp1 + fib_tp1) / 2  # Blend with ATR-based TP
+                
+                # TP2: Target higher Fibonacci level
+                higher_fib = None
+                for fib_level in reversed(fib_levels):
+                    if fib_level > entry_price * 1.02:
+                        higher_fib = fib_level
+                        break
+                
+                if higher_fib and higher_fib > base_tp1:
+                    fib_tp2 = higher_fib
+                    if fib_tp2 <= entry_price * 1.25:  # Max 25% gain
+                        base_tp2 = (base_tp2 + fib_tp2) / 2
+            
+            # Support-based SL adjustment
+            support_level = latest['support']
+            if not pd.isna(support_level) and support_level < entry_price:
+                # Place SL slightly below support
+                support_sl = support_level * 0.995  # 0.5% below support
+                
+                # Use support-based SL if it's not too far from ATR-based SL
+                sl_distance_atr = entry_price - base_sl
+                sl_distance_support = entry_price - support_sl
+                
+                if 0.5 <= sl_distance_support / sl_distance_atr <= 2.0:  # Within reasonable range
+                    base_sl = (base_sl + support_sl) / 2  # Blend
+            
+            # Bollinger Band adjustment
+            if not pd.isna(latest['BB_upper']) and not pd.isna(latest['BB_lower']):
+                # If entry is near BB lower, adjust TP to BB middle/upper
+                bb_position = (entry_price - latest['BB_lower']) / (latest['BB_upper'] - latest['BB_lower'])
+                
+                if bb_position < 0.3:  # Entry near lower band
+                    bb_tp1 = latest['BB_middle']
+                    bb_tp2 = latest['BB_upper']
+                    
+                    if bb_tp1 > entry_price * 1.005:
+                        base_tp1 = min(base_tp1, bb_tp1)  # Don't exceed BB middle initially
+                    if bb_tp2 > base_tp1:
+                        base_tp2 = (base_tp2 + bb_tp2) / 2  # Blend with BB upper
+            
+            # ADX-based adjustment (stronger trends = wider targets)
+            if not pd.isna(latest['ADX']):
+                if latest['ADX'] > 40:  # Very strong trend
+                    base_tp2 *= 1.1  # Extend TP2 by 10%
+                elif latest['ADX'] < 20:  # Weak trend
+                    base_tp1 *= 0.9  # Reduce TP1 by 10%
+                    base_tp2 *= 0.9  # Reduce TP2 by 10%
+            
+            # Volume confirmation adjustment
+            if not pd.isna(latest['volume_ratio']):
+                if latest['volume_ratio'] > 2.0:  # High volume breakout
+                    base_tp2 *= 1.05  # Slightly extend TP2
+                elif latest['volume_ratio'] < 0.8:  # Low volume
+                    base_tp1 *= 0.95  # Reduce targets
+                    base_tp2 *= 0.95
+        
+        # Final validation and rounding
+        tp1 = round(max(base_tp1, entry_price * 1.002), 6)  # Min 0.2% profit
+        tp2 = round(max(base_tp2, tp1 * 1.2), 6)  # TP2 at least 20% higher than TP1
+        stop_loss = round(min(base_sl, entry_price * 0.98), 6)  # Max 2% loss for BUY
+        
+        # Risk management: Ensure reasonable R:R ratio
+        risk = entry_price - stop_loss
+        reward1 = tp1 - entry_price
+        
+        if risk > 0 and reward1 / risk < 1.5:  # Poor R:R ratio
+            tp1 = entry_price + (risk * 1.5)  # Ensure at least 1.5:1 R:R
+            tp2 = entry_price + (risk * 2.5)  # Ensure at least 2.5:1 R:R for TP2
         
         return tp1, tp2, stop_loss
 
-    def calculate_tp_sl_fixed(self, entry_price, signal_type, atr_value, trend_strength):
-        """Tính toán TP/SL cho SPOT TRADING (chỉ BUY) - backward compatibility"""
-        return self.calculate_tp_sl_by_investment_type(entry_price, signal_type, atr_value, trend_strength, '60m')
+    def calculate_tp_sl_fixed(self, entry_price, signal_type, atr_value, trend_strength, df_main=None):
+        """Tính toán TP/SL cho SPOT TRADING (chỉ BUY) - backward compatibility với enhanced features"""
+        return self.calculate_tp_sl_by_investment_type(entry_price, signal_type, atr_value, trend_strength, '60m', df_main)
     
     def calculate_enhanced_signal_score(self, df):
-        """Tính điểm tín hiệu nâng cao với trọng số"""
+        """Tính điểm tín hiệu nâng cao với trọng số thông minh và các chỉ báo mới"""
         if df is None or len(df) < 3:
             return 0, 0, {}
             
@@ -329,68 +503,183 @@ class EnhancedCryptoPredictionAppV2:
         sell_score = 0
         signals = {}
         
-        # 1. Trend Following Signals (Trọng số cao)
-        # EMA Crossover
+        # Kiểm tra độ mạnh xu hướng với ADX trước
+        adx_strength = 1.0  # Default multiplier
+        if not pd.isna(latest['ADX']):
+            if latest['ADX'] > 25:  # Xu hướng mạnh
+                adx_strength = 1.3
+                signals['strong_trend'] = True
+            elif latest['ADX'] < 20:  # Xu hướng yếu/sideway
+                adx_strength = 0.7
+                signals['weak_trend'] = True
+        
+        # Kiểm tra thị trường sideway với Bollinger Band Width
+        is_sideway = False
+        if not pd.isna(latest['BB_width']) and not pd.isna(latest['BB_width_sma']):
+            if latest['BB_width'] < latest['BB_width_sma'] * 0.8:
+                is_sideway = True
+                signals['sideway_market'] = True
+        
+        # === 1. TREND FOLLOWING SIGNALS (Trọng số cao) ===
+        
+        # Ichimoku Cloud Analysis (Trọng số cao - 4 điểm)
+        if not pd.isna(latest['tenkan_sen']) and not pd.isna(latest['kijun_sen']):
+            # Tenkan-sen cross Kijun-sen
+            if latest['tenkan_sen'] > latest['kijun_sen'] and prev['tenkan_sen'] <= prev['kijun_sen']:
+                buy_score += 4 * adx_strength
+                signals['ichimoku_bullish_cross'] = True
+            elif latest['tenkan_sen'] < latest['kijun_sen'] and prev['tenkan_sen'] >= prev['kijun_sen']:
+                sell_score += 4 * adx_strength
+                signals['ichimoku_bearish_cross'] = True
+            
+            # Price above/below Cloud
+            if not pd.isna(latest['senkou_span_a']) and not pd.isna(latest['senkou_span_b']):
+                cloud_top = max(latest['senkou_span_a'], latest['senkou_span_b'])
+                cloud_bottom = min(latest['senkou_span_a'], latest['senkou_span_b'])
+                
+                if latest['close'] > cloud_top:
+                    buy_score += 3 * adx_strength
+                    signals['price_above_cloud'] = True
+                elif latest['close'] < cloud_bottom:
+                    sell_score += 3 * adx_strength
+                    signals['price_below_cloud'] = True
+        
+        # EMA Crossover (Điều chỉnh trọng số)
         if latest['EMA_10'] > latest['EMA_20'] and prev['EMA_10'] <= prev['EMA_20']:
-            buy_score += 3
+            buy_score += 3.5 * adx_strength
             signals['EMA_bullish_cross'] = True
         elif latest['EMA_10'] < latest['EMA_20'] and prev['EMA_10'] >= prev['EMA_20']:
-            sell_score += 3
+            sell_score += 3.5 * adx_strength
             signals['EMA_bearish_cross'] = True
         
-        # Price vs EMA Alignment
+        # Price vs EMA Alignment (Weighted by trend strength)
         if latest['close'] > latest['EMA_10'] > latest['EMA_20'] > latest['EMA_50']:
-            buy_score += 2
+            buy_score += 2.5 * adx_strength
             signals['bullish_alignment'] = True
         elif latest['close'] < latest['EMA_10'] < latest['EMA_20'] < latest['EMA_50']:
-            sell_score += 2
+            sell_score += 2.5 * adx_strength
             signals['bearish_alignment'] = True
         
-        # 2. Momentum Signals
-        # RSI Signals
+        # === 2. MOMENTUM SIGNALS (Nâng cao với Stochastic) ===
+        
+        # Stochastic Oscillator (Độ nhạy cao hơn RSI)
+        if not pd.isna(latest['stoch_k']) and not pd.isna(latest['stoch_d']):
+            # Stochastic oversold recovery
+            if latest['stoch_k'] < 20 and latest['stoch_k'] > prev['stoch_k'] and latest['stoch_k'] > latest['stoch_d']:
+                buy_score += 3 * adx_strength
+                signals['stoch_oversold_recovery'] = True
+            # Stochastic overbought decline  
+            elif latest['stoch_k'] > 80 and latest['stoch_k'] < prev['stoch_k'] and latest['stoch_k'] < latest['stoch_d']:
+                sell_score += 3 * adx_strength
+                signals['stoch_overbought_decline'] = True
+        
+        # RSI Signals (Trọng số điều chỉnh)
         if latest['RSI'] < 30 and latest['RSI'] > prev['RSI']:
-            buy_score += 2.5
+            buy_score += 2.5 * adx_strength
             signals['RSI_oversold_recovery'] = True
         elif latest['RSI'] > 70 and latest['RSI'] < prev['RSI']:
-            sell_score += 2.5
+            sell_score += 2.5 * adx_strength
             signals['RSI_overbought_decline'] = True
         
         # RSI Divergence (simplified)
         if (latest['close'] < prev2['close'] and latest['RSI'] > prev2['RSI'] and latest['RSI'] < 50):
-            buy_score += 2
+            buy_score += 2.5 * adx_strength
             signals['RSI_bullish_divergence'] = True
         elif (latest['close'] > prev2['close'] and latest['RSI'] < prev2['RSI'] and latest['RSI'] > 50):
-            sell_score += 2
+            sell_score += 2.5 * adx_strength
             signals['RSI_bearish_divergence'] = True
         
-        # MACD Signals
+        # MACD Signals (Strengthened with trend confirmation)
         if not pd.isna(latest['MACD']) and not pd.isna(latest['MACD_signal']):
+            # MACD crossover with histogram confirmation
             if latest['MACD'] > latest['MACD_signal'] and prev['MACD'] <= prev['MACD_signal']:
-                buy_score += 2.5
+                macd_strength = 3 if latest['MACD_hist'] > prev['MACD_hist'] else 2
+                buy_score += macd_strength * adx_strength
                 signals['MACD_bullish_cross'] = True
             elif latest['MACD'] < latest['MACD_signal'] and prev['MACD'] >= prev['MACD_signal']:
-                sell_score += 2.5
+                macd_strength = 3 if latest['MACD_hist'] < prev['MACD_hist'] else 2
+                sell_score += macd_strength * adx_strength
                 signals['MACD_bearish_cross'] = True
         
-        # 3. Volume Analysis
+        # === 3. VOLUME ANALYSIS (Nâng cao với OBV) ===
+        
+        # On-Balance Volume confirmation
+        obv_bullish = False
+        obv_bearish = False
+        if not pd.isna(latest['OBV']) and not pd.isna(latest['OBV_sma']):
+            if latest['OBV'] > latest['OBV_sma'] and prev['OBV'] <= prev['OBV_sma']:
+                obv_bullish = True
+                signals['OBV_bullish'] = True
+            elif latest['OBV'] < latest['OBV_sma'] and prev['OBV'] >= prev['OBV_sma']:
+                obv_bearish = True
+                signals['OBV_bearish'] = True
+        
+        # Volume + Price confirmation (Nâng cao)
         if latest['volume_ratio'] > 1.5:  # High volume
             if latest['close'] > prev['close']:
-                buy_score += 1.5
+                volume_score = 2 if obv_bullish else 1.5
+                buy_score += volume_score * adx_strength
                 signals['volume_bullish_confirmation'] = True
             elif latest['close'] < prev['close']:
-                sell_score += 1.5
+                volume_score = 2 if obv_bearish else 1.5
+                sell_score += volume_score * adx_strength
                 signals['volume_bearish_confirmation'] = True
         
-        # 4. Support/Resistance
+        # === 4. SUPPORT/RESISTANCE + FIBONACCI ===
+        
+        # Fibonacci Support/Resistance
+        fib_support_bounce = False
+        fib_resistance_reject = False
+        
+        if not pd.isna(latest['fib_382']) and not pd.isna(latest['fib_618']):
+            # Price near Fibonacci support levels
+            fib_levels = [latest['fib_236'], latest['fib_382'], latest['fib_500'], latest['fib_618']]
+            for fib_level in fib_levels:
+                if abs(latest['close'] - fib_level) / latest['close'] < 0.01:  # Within 1%
+                    if latest['close'] > prev['close']:  # Bouncing from support
+                        buy_score += 2 * adx_strength
+                        fib_support_bounce = True
+                        signals['fibonacci_support_bounce'] = True
+                        break
+                    elif latest['close'] < prev['close']:  # Rejected at resistance
+                        sell_score += 2 * adx_strength
+                        fib_resistance_reject = True
+                        signals['fibonacci_resistance_reject'] = True
+                        break
+        
+        # Traditional Support/Resistance
         price_near_support = abs(latest['close'] - latest['support']) / latest['close'] < 0.015
         price_near_resistance = abs(latest['close'] - latest['resistance']) / latest['close'] < 0.015
         
-        if price_near_support and latest['close'] > prev['close']:
-            buy_score += 1.5
+        if price_near_support and latest['close'] > prev['close'] and not fib_support_bounce:
+            buy_score += 1.5 * adx_strength
             signals['support_bounce'] = True
-        elif price_near_resistance and latest['close'] < prev['close']:
-            sell_score += 1.5
+        elif price_near_resistance and latest['close'] < prev['close'] and not fib_resistance_reject:
+            sell_score += 1.5 * adx_strength
             signals['resistance_rejection'] = True
+        
+        # === 5. CANDLESTICK PATTERNS ===
+        
+        # Bullish patterns
+        if latest['hammer'] > 0 or latest['engulfing_bullish'] > 0 or latest['morning_star'] > 0:
+            buy_score += 2 * adx_strength
+            signals['bullish_candlestick'] = True
+        
+        # Bearish patterns
+        if latest['hanging_man'] < 0 or latest['evening_star'] < 0:
+            sell_score += 2 * adx_strength
+            signals['bearish_candlestick'] = True
+        
+        # Doji (indecision - reduce both scores)
+        if latest['doji'] != 0:
+            buy_score *= 0.8
+            sell_score *= 0.8
+            signals['doji_indecision'] = True
+        
+        # === 6. PENALTY FOR SIDEWAY MARKET ===
+        if is_sideway:
+            buy_score *= 0.5  # Giảm mạnh tín hiệu trong sideway
+            sell_score *= 0.5
         
         return buy_score, sell_score, signals
     
@@ -424,8 +713,9 @@ class EnhancedCryptoPredictionAppV2:
         else:
             return volume_bonus, "MIXED"
     
-    def predict_enhanced_probability(self, buy_score, sell_score, trends, rsi_value, volume_ratio, volume_analysis):
-        """Dự đoán xác suất thành công cho SPOT TRADING với volume analysis"""
+    def predict_enhanced_probability(self, buy_score, sell_score, trends, rsi_value, volume_ratio, volume_analysis, 
+                                   main_timeframe='15m', df_main=None):
+        """Dự đoán xác suất thành công với Weighted Multi-Timeframe Analysis"""
         signal_type = 'BUY'
         max_score = buy_score
         
@@ -434,54 +724,158 @@ class EnhancedCryptoPredictionAppV2:
             max_score = 0
             signal_type = 'WAIT'
         
-        # Base probability
+        # Base probability từ signal score
         if signal_type == 'BUY':
-            base_prob = min(max_score / 15.0, 0.7)
+            base_prob = min(max_score / 20.0, 0.7)  # Điều chỉnh do có nhiều chỉ báo hơn
         else:
             base_prob = 0
         
-        # Trend bonus với volume
-        trend_bonus, trend_strength = self.analyze_trend_strength(trends, volume_analysis)
-        if trend_strength == "STRONG_DOWN":
-            trend_bonus = -0.2
-            trend_strength = "WAIT_FOR_UPTREND"
+        # === WEIGHTED MULTI-TIMEFRAME ANALYSIS ===
+        # Trọng số cho các khung thời gian
+        timeframe_weights = {
+            '15m': 0.4 if main_timeframe == '15m' else 0.2,
+            '1h': 0.3 if main_timeframe == '1h' else 0.25,
+            '4h': 0.2 if main_timeframe == '4h' else 0.35,
+            '1d': 0.1 if main_timeframe == '1d' else 0.2
+        }
         
-        # RSI bonus
+        # Tính trend consensus với trọng số
+        weighted_trend_score = 0
+        total_weight = 0
+        
+        for tf, trend in trends.items():
+            weight = timeframe_weights.get(tf, 0.1)
+            total_weight += weight
+            
+            if 'STRONG_UPTREND' in trend:
+                weighted_trend_score += 2 * weight
+            elif 'UPTREND' in trend:
+                weighted_trend_score += 1 * weight
+            elif 'STRONG_DOWNTREND' in trend:
+                weighted_trend_score -= 2 * weight
+            elif 'DOWNTREND' in trend:
+                weighted_trend_score -= 1 * weight
+        
+        if total_weight > 0:
+            weighted_trend_score /= total_weight
+        
+        # Trend bonus dựa trên weighted score
+        trend_bonus = 0
+        trend_strength = "MIXED"
+        
+        if weighted_trend_score >= 1.5:
+            trend_bonus = 0.25
+            trend_strength = "STRONG_UP"
+        elif weighted_trend_score >= 0.8:
+            trend_bonus = 0.15
+            trend_strength = "STRONG_UP"
+        elif weighted_trend_score <= -1.5:
+            trend_bonus = -0.3
+            trend_strength = "WAIT_FOR_UPTREND"
+        elif weighted_trend_score <= -0.8:
+            trend_bonus = -0.2
+            trend_strength = "STRONG_DOWN"
+        else:
+            trend_bonus = weighted_trend_score * 0.1
+            trend_strength = "MIXED"
+        
+        # === ADVANCED SIGNAL CONFIRMATIONS ===
+        confirmation_bonus = 0
+        
+        if df_main is not None and len(df_main) > 0:
+            latest = df_main.iloc[-1]
+            
+            # ADX confirmation (xu hướng mạnh)
+            if not pd.isna(latest['ADX']) and latest['ADX'] > 25:
+                if signal_type == 'BUY' and trend_strength in ["STRONG_UP"]:
+                    confirmation_bonus += 0.1
+            
+            # Ichimoku Cloud confirmation
+            if not pd.isna(latest['senkou_span_a']) and not pd.isna(latest['senkou_span_b']):
+                cloud_top = max(latest['senkou_span_a'], latest['senkou_span_b'])
+                if signal_type == 'BUY' and latest['close'] > cloud_top:
+                    confirmation_bonus += 0.08
+            
+            # Stochastic confirmation
+            if not pd.isna(latest['stoch_k']) and signal_type == 'BUY':
+                if latest['stoch_k'] < 20:  # Oversold area
+                    confirmation_bonus += 0.05
+                elif latest['stoch_k'] > 80:  # Overbought area
+                    confirmation_bonus -= 0.1
+            
+            # Volume flow confirmation (OBV)
+            if not pd.isna(latest['OBV']) and not pd.isna(latest['OBV_sma']):
+                if signal_type == 'BUY' and latest['OBV'] > latest['OBV_sma']:
+                    confirmation_bonus += 0.06
+            
+            # Bollinger Band position
+            if not pd.isna(latest['BB_lower']) and not pd.isna(latest['BB_upper']):
+                bb_position = (latest['close'] - latest['BB_lower']) / (latest['BB_upper'] - latest['BB_lower'])
+                if signal_type == 'BUY' and bb_position < 0.2:  # Near lower band (oversold)
+                    confirmation_bonus += 0.05
+        
+        # RSI bonus (refined)
         rsi_bonus = 0
         if signal_type == 'BUY':
-            if rsi_value < 30:
+            if rsi_value < 25:  # Deep oversold
+                rsi_bonus = 0.2
+            elif 25 <= rsi_value <= 40:  # Moderate oversold
                 rsi_bonus = 0.15
-            elif 30 <= rsi_value <= 45:
-                rsi_bonus = 0.1
-            elif rsi_value > 70:
-                rsi_bonus = -0.15
+            elif 40 < rsi_value <= 55:  # Neutral bullish
+                rsi_bonus = 0.05
+            elif rsi_value > 75:  # Overbought
+                rsi_bonus = -0.2
         
-        # Volume bonus từ analysis đa khung thời gian
+        # Volume analysis với trọng số đa khung thời gian
         volume_bonus = 0
         volume_consistency = 0
         
         for tf, vol_data in volume_analysis.items():
+            tf_weight = timeframe_weights.get(tf, 0.1)
+            
             if vol_data['trend'] in ['HIGH', 'ELEVATED']:
                 if vol_data['price_change'] > 0 and signal_type == 'BUY':
-                    volume_bonus += 0.05
-                    volume_consistency += 1
+                    volume_bonus += 0.05 * tf_weight
+                    volume_consistency += tf_weight
                 elif vol_data['price_change'] < 0:
-                    volume_bonus -= 0.03
+                    volume_bonus -= 0.03 * tf_weight
         
-        # Consistency bonus
-        if volume_consistency >= 2:
-            volume_bonus += 0.05
+        # Multi-timeframe volume consistency bonus
+        if volume_consistency >= 0.6:  # Consistency across timeframes
+            volume_bonus += 0.08
         
-        # Score difference bonus
+        # Score difference bonus (signal strength)
         score_diff = buy_score - sell_score
-        if score_diff > 5:
+        if score_diff > 8:  # Strong signal separation
+            score_bonus = 0.15
+        elif score_diff > 5:
             score_bonus = 0.1
-        elif score_diff < -2:
-            score_bonus = -0.15
+        elif score_diff < -3:
+            score_bonus = -0.2
         else:
             score_bonus = 0
         
-        final_prob = max(0, min(base_prob + trend_bonus + rsi_bonus + volume_bonus + score_bonus, 0.95))
+        # === RISK MANAGEMENT PENALTIES ===
+        risk_penalty = 0
+        
+        # Sideway market penalty
+        if df_main is not None and len(df_main) > 0:
+            latest = df_main.iloc[-1]
+            if not pd.isna(latest['BB_width']) and not pd.isna(latest['BB_width_sma']):
+                if latest['BB_width'] < latest['BB_width_sma'] * 0.7:  # Very narrow range
+                    risk_penalty += 0.15
+        
+        # Time of analysis penalty (market hours consideration)
+        current_hour = datetime.now().hour
+        if 2 <= current_hour <= 6:  # Low liquidity hours
+            risk_penalty += 0.05
+        
+        # Final probability calculation
+        final_prob = max(0, min(
+            base_prob + trend_bonus + rsi_bonus + volume_bonus + 
+            score_bonus + confirmation_bonus - risk_penalty, 
+            0.95
+        ))
         
         return final_prob, signal_type, trend_strength
     
@@ -554,17 +948,18 @@ class EnhancedCryptoPredictionAppV2:
         
         latest = df_main.iloc[-1]
         
-        # Dự đoán xác suất thành công
+        # Dự đoán xác suất thành công với weighted multi-timeframe analysis
         success_prob, signal_type, trend_strength = self.predict_enhanced_probability(
-            buy_score, sell_score, trends, latest['RSI'], latest['volume_ratio'], volume_analysis
+            buy_score, sell_score, trends, latest['RSI'], latest['volume_ratio'], 
+            volume_analysis, main_timeframe, df_main
         )
         
         # Entry price = current price
         entry_price = current_price
 
-        # Tính TP/SL dựa trên investment_type
+        # Tính TP/SL dựa trên investment_type với Fibonacci và technical levels
         tp1, tp2, stop_loss = self.calculate_tp_sl_by_investment_type(
-            entry_price, signal_type, latest['ATR'], trend_strength, investment_type
+            entry_price, signal_type, latest['ATR'], trend_strength, investment_type, df_main
         )
         
         # Risk/Reward ratio - chỉ tính cho BUY
@@ -697,17 +1092,18 @@ class EnhancedCryptoPredictionAppV2:
         
         latest = df_15m.iloc[-1]
         
-        # Dự đoán xác suất thành công
+        # Dự đoán xác suất thành công với weighted analysis
         success_prob, signal_type, trend_strength = self.predict_enhanced_probability(
-            buy_score, sell_score, trends, latest['RSI'], latest['volume_ratio'], volume_analysis
+            buy_score, sell_score, trends, latest['RSI'], latest['volume_ratio'], 
+            volume_analysis, '15m', df_15m
         )
         
         # Entry price = current price
         entry_price = current_price
 
-        # Tính TP/SL dựa trên entry_price
+        # Tính TP/SL dựa trên entry_price với enhanced technical analysis
         tp1, tp2, stop_loss = self.calculate_tp_sl_fixed(
-            entry_price, signal_type, latest['ATR'], trend_strength
+            entry_price, signal_type, latest['ATR'], trend_strength, df_15m
         )
         
         # Risk/Reward ratio - chỉ tính cho BUY
