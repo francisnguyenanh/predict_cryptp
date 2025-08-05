@@ -491,7 +491,7 @@ class EnhancedCryptoPredictionAppV2:
         return self.calculate_tp_sl_by_investment_type(entry_price, signal_type, atr_value, trend_strength, '60m', df_main)
     
     def calculate_enhanced_signal_score(self, df):
-        """Tính điểm tín hiệu nâng cao với trọng số thông minh và các chỉ báo mới"""
+        """Tính điểm tín hiệu nâng cao với trọng số thông minh - OPTIMIZED theo gợi ý"""
         if df is None or len(df) < 3:
             return 0, 0, {}
             
@@ -503,75 +503,459 @@ class EnhancedCryptoPredictionAppV2:
         sell_score = 0
         signals = {}
         
-        # Kiểm tra độ mạnh xu hướng với ADX trước
-        adx_strength = 1.0  # Default multiplier
+        # === MARKET CONDITION ANALYSIS ===
+        # Kiểm tra độ mạnh xu hướng với ADX - ĐÃ CÓ NHƯNG TỐI ƯU HÓA
+        adx_strength = 1.0
+        trend_quality = "WEAK"
+        
         if not pd.isna(latest['ADX']):
-            if latest['ADX'] > 25:  # Xu hướng mạnh
+            if latest['ADX'] > 30:  # Xu hướng rất mạnh
+                adx_strength = 1.5
+                trend_quality = "VERY_STRONG"
+                signals['very_strong_trend'] = True
+            elif latest['ADX'] > 25:  # Xu hướng mạnh
                 adx_strength = 1.3
+                trend_quality = "STRONG"
                 signals['strong_trend'] = True
-            elif latest['ADX'] < 20:  # Xu hướng yếu/sideway
-                adx_strength = 0.7
+            elif latest['ADX'] > 20:  # Xu hướng trung bình
+                adx_strength = 1.0
+                trend_quality = "MODERATE"
+            else:  # Xu hướng yếu/sideway
+                adx_strength = 0.6  # Giảm mạnh để tránh sideway
+                trend_quality = "WEAK"
                 signals['weak_trend'] = True
         
-        # Kiểm tra thị trường sideway với Bollinger Band Width
+        # Kiểm tra thị trường sideway với Bollinger Band Width - TỐI ƯU HÓA
         is_sideway = False
+        sideway_penalty = 1.0
+        
         if not pd.isna(latest['BB_width']) and not pd.isna(latest['BB_width_sma']):
-            if latest['BB_width'] < latest['BB_width_sma'] * 0.8:
+            bb_width_ratio = latest['BB_width'] / latest['BB_width_sma']
+            if bb_width_ratio < 0.7:  # Rất hẹp
                 is_sideway = True
-                signals['sideway_market'] = True
+                sideway_penalty = 0.3  # Penalty mạnh
+                signals['very_narrow_range'] = True
+            elif bb_width_ratio < 0.8:  # Hẹp
+                sideway_penalty = 0.5
+                signals['narrow_range'] = True
+            elif bb_width_ratio > 1.3:  # Mở rộng - tốt cho breakout
+                sideway_penalty = 1.2
+                signals['expanding_range'] = True
         
-        # === 1. TREND FOLLOWING SIGNALS (Trọng số cao) ===
+        # === 1. ICHIMOKU CLOUD ANALYSIS (Trọng số cao nhất) ===
+        ichimoku_signal_strength = 0
         
-        # Ichimoku Cloud Analysis (Trọng số cao - 4 điểm)
         if not pd.isna(latest['tenkan_sen']) and not pd.isna(latest['kijun_sen']):
-            # Tenkan-sen cross Kijun-sen
+            # Tenkan-sen cross Kijun-sen với volume confirmation
             if latest['tenkan_sen'] > latest['kijun_sen'] and prev['tenkan_sen'] <= prev['kijun_sen']:
-                buy_score += 4 * adx_strength
+                # Kiểm tra volume confirmation
+                volume_boost = 1.0
+                if not pd.isna(latest['volume_ratio']) and latest['volume_ratio'] > 1.2:
+                    volume_boost = 1.3
+                
+                ichimoku_signal_strength = 5 * adx_strength * volume_boost
+                buy_score += ichimoku_signal_strength
                 signals['ichimoku_bullish_cross'] = True
+                
             elif latest['tenkan_sen'] < latest['kijun_sen'] and prev['tenkan_sen'] >= prev['kijun_sen']:
-                sell_score += 4 * adx_strength
+                ichimoku_signal_strength = 5 * adx_strength
+                sell_score += ichimoku_signal_strength
                 signals['ichimoku_bearish_cross'] = True
             
-            # Price above/below Cloud
+            # Price position vs Cloud - TỐI ƯU HÓA
             if not pd.isna(latest['senkou_span_a']) and not pd.isna(latest['senkou_span_b']):
                 cloud_top = max(latest['senkou_span_a'], latest['senkou_span_b'])
                 cloud_bottom = min(latest['senkou_span_a'], latest['senkou_span_b'])
+                cloud_thickness = (cloud_top - cloud_bottom) / latest['close']
                 
                 if latest['close'] > cloud_top:
-                    buy_score += 3 * adx_strength
+                    # Bonus nếu cloud dày (strong support)
+                    cloud_bonus = 1.2 if cloud_thickness > 0.02 else 1.0
+                    buy_score += 4 * adx_strength * cloud_bonus
                     signals['price_above_cloud'] = True
+                    
                 elif latest['close'] < cloud_bottom:
-                    sell_score += 3 * adx_strength
+                    cloud_bonus = 1.2 if cloud_thickness > 0.02 else 1.0
+                    sell_score += 4 * adx_strength * cloud_bonus
                     signals['price_below_cloud'] = True
+                    
+                elif cloud_bottom <= latest['close'] <= cloud_top:
+                    # Trong cloud - neutral với penalty
+                    buy_score *= 0.7
+                    sell_score *= 0.7
+                    signals['price_in_cloud'] = True
         
-        # EMA Crossover (Điều chỉnh trọng số)
-        if latest['EMA_10'] > latest['EMA_20'] and prev['EMA_10'] <= prev['EMA_20']:
-            buy_score += 3.5 * adx_strength
-            signals['EMA_bullish_cross'] = True
-        elif latest['EMA_10'] < latest['EMA_20'] and prev['EMA_10'] >= prev['EMA_20']:
-            sell_score += 3.5 * adx_strength
-            signals['EMA_bearish_cross'] = True
+        # === 2. WEIGHTED MULTI-TIMEFRAME EMA ANALYSIS ===
+        ema_alignment_score = 0
         
-        # Price vs EMA Alignment (Weighted by trend strength)
-        if latest['close'] > latest['EMA_10'] > latest['EMA_20'] > latest['EMA_50']:
-            buy_score += 2.5 * adx_strength
-            signals['bullish_alignment'] = True
-        elif latest['close'] < latest['EMA_10'] < latest['EMA_20'] < latest['EMA_50']:
-            sell_score += 2.5 * adx_strength
-            signals['bearish_alignment'] = True
+        # EMA Crossover với signal strength
+        if (not pd.isna(latest['EMA_10']) and not pd.isna(latest['EMA_20']) and 
+            not pd.isna(latest['EMA_50'])):
+            
+            # Bullish crossover
+            if latest['EMA_10'] > latest['EMA_20'] and prev['EMA_10'] <= prev['EMA_20']:
+                # Tính signal strength dựa trên angle và distance
+                ema_distance = (latest['EMA_10'] - latest['EMA_20']) / latest['close']
+                signal_strength = min(ema_distance * 1000, 2.0)  # Cap at 2.0
+                
+                ema_alignment_score = 3.5 * adx_strength * (1 + signal_strength)
+                buy_score += ema_alignment_score
+                signals['EMA_bullish_cross'] = True
+                
+            elif latest['EMA_10'] < latest['EMA_20'] and prev['EMA_10'] >= prev['EMA_20']:
+                ema_distance = (latest['EMA_20'] - latest['EMA_10']) / latest['close']
+                signal_strength = min(ema_distance * 1000, 2.0)
+                
+                ema_alignment_score = 3.5 * adx_strength * (1 + signal_strength)
+                sell_score += ema_alignment_score
+                signals['EMA_bearish_cross'] = True
+            
+            # Perfect alignment bonus
+            if latest['close'] > latest['EMA_10'] > latest['EMA_20'] > latest['EMA_50']:
+                alignment_strength = 1.0
+                # Check EMA angles
+                if (latest['EMA_10'] > prev['EMA_10'] and 
+                    latest['EMA_20'] > prev['EMA_20'] and 
+                    latest['EMA_50'] > prev['EMA_50']):
+                    alignment_strength = 1.5  # All EMAs rising
+                
+                buy_score += 3 * adx_strength * alignment_strength
+                signals['perfect_bullish_alignment'] = True
+                
+            elif latest['close'] < latest['EMA_10'] < latest['EMA_20'] < latest['EMA_50']:
+                alignment_strength = 1.0
+                if (latest['EMA_10'] < prev['EMA_10'] and 
+                    latest['EMA_20'] < prev['EMA_20'] and 
+                    latest['EMA_50'] < prev['EMA_50']):
+                    alignment_strength = 1.5
+                
+                sell_score += 3 * adx_strength * alignment_strength
+                signals['perfect_bearish_alignment'] = True
         
-        # === 2. MOMENTUM SIGNALS (Nâng cao với Stochastic) ===
+        # === 3. ADVANCED STOCHASTIC OSCILLATOR ANALYSIS ===
+        stochastic_signal_strength = 0
         
-        # Stochastic Oscillator (Độ nhạy cao hơn RSI)
         if not pd.isna(latest['stoch_k']) and not pd.isna(latest['stoch_d']):
-            # Stochastic oversold recovery
-            if latest['stoch_k'] < 20 and latest['stoch_k'] > prev['stoch_k'] and latest['stoch_k'] > latest['stoch_d']:
-                buy_score += 3 * adx_strength
-                signals['stoch_oversold_recovery'] = True
-            # Stochastic overbought decline  
-            elif latest['stoch_k'] > 80 and latest['stoch_k'] < prev['stoch_k'] and latest['stoch_k'] < latest['stoch_d']:
-                sell_score += 3 * adx_strength
-                signals['stoch_overbought_decline'] = True
+            # Stochastic crossover với divergence detection
+            if latest['stoch_k'] > latest['stoch_d'] and prev['stoch_k'] <= prev['stoch_d']:
+                # Bullish crossover strength dựa trên vị trí
+                if latest['stoch_k'] < 30:  # Oversold recovery
+                    stochastic_signal_strength = 4 * adx_strength
+                elif latest['stoch_k'] < 50:  # Mid-level recovery
+                    stochastic_signal_strength = 3 * adx_strength
+                else:  # Overbought area - weaker signal
+                    stochastic_signal_strength = 1.5 * adx_strength
+                    
+                buy_score += stochastic_signal_strength
+                signals['stoch_bullish_cross'] = True
+                
+            elif latest['stoch_k'] < latest['stoch_d'] and prev['stoch_k'] >= prev['stoch_d']:
+                # Bearish crossover
+                if latest['stoch_k'] > 70:  # Overbought decline
+                    stochastic_signal_strength = 4 * adx_strength
+                elif latest['stoch_k'] > 50:
+                    stochastic_signal_strength = 3 * adx_strength
+                else:
+                    stochastic_signal_strength = 1.5 * adx_strength
+                    
+                sell_score += stochastic_signal_strength
+                signals['stoch_bearish_cross'] = True
+            
+            # Stochastic Divergence Analysis
+            if len(df) >= 10:
+                # Simple divergence check over last 10 periods
+                stoch_trend = latest['stoch_k'] - df.iloc[-10]['stoch_k']
+                price_trend = latest['close'] - df.iloc[-10]['close']
+                
+                # Bullish divergence: price down, stoch up
+                if price_trend < 0 and stoch_trend > 0 and latest['stoch_k'] < 40:
+                    buy_score += 2.5 * adx_strength
+                    signals['stoch_bullish_divergence'] = True
+                    
+                # Bearish divergence: price up, stoch down
+                elif price_trend > 0 and stoch_trend < 0 and latest['stoch_k'] > 60:
+                    sell_score += 2.5 * adx_strength
+                    signals['stoch_bearish_divergence'] = True
+        
+        # === 4. ENHANCED RSI WITH MULTI-LEVEL ANALYSIS ===
+        rsi_signal_strength = 0
+        
+        if not pd.isna(latest['RSI']) and not pd.isna(prev['RSI']):
+            # RSI level-based scoring với momentum
+            rsi_momentum = latest['RSI'] - prev['RSI']
+            
+            if latest['RSI'] < 25 and rsi_momentum > 0:  # Deep oversold recovery
+                rsi_signal_strength = 3.5 * adx_strength
+                signals['rsi_deep_oversold_recovery'] = True
+            elif latest['RSI'] < 35 and rsi_momentum > 1:  # Oversold strong recovery
+                rsi_signal_strength = 3 * adx_strength
+                signals['rsi_oversold_recovery'] = True
+            elif 40 <= latest['RSI'] <= 55 and rsi_momentum > 0:  # Neutral bullish
+                rsi_signal_strength = 2 * adx_strength
+                signals['rsi_neutral_bullish'] = True
+            elif latest['RSI'] > 75 and rsi_momentum < 0:  # Overbought decline
+                rsi_signal_strength = 3.5 * adx_strength
+                signals['rsi_overbought_decline'] = True
+            elif latest['RSI'] > 65 and rsi_momentum < -1:  # Strong decline from overbought
+                rsi_signal_strength = 3 * adx_strength
+                signals['rsi_strong_decline'] = True
+            
+            if rsi_signal_strength > 0:
+                if signals.get('rsi_deep_oversold_recovery') or signals.get('rsi_oversold_recovery') or signals.get('rsi_neutral_bullish'):
+                    buy_score += rsi_signal_strength
+                else:
+                    sell_score += rsi_signal_strength
+        
+        # === 5. ENHANCED VOLUME ANALYSIS WITH OBV ===
+        volume_confirmation_score = 0
+        
+        # On-Balance Volume analysis
+        if not pd.isna(latest['OBV']) and not pd.isna(latest['OBV_sma']) and not pd.isna(prev['OBV']):
+            obv_momentum = latest['OBV'] - prev['OBV']
+            price_momentum = latest['close'] - prev['close']
+            
+            # OBV-Price confirmation
+            if obv_momentum > 0 and price_momentum > 0:  # Both rising
+                if latest['OBV'] > latest['OBV_sma']:  # Above average
+                    volume_confirmation_score = 3 * adx_strength
+                    signals['obv_price_bullish_confirm'] = True
+                else:
+                    volume_confirmation_score = 2 * adx_strength
+                    signals['obv_price_mild_bullish'] = True
+                    
+                buy_score += volume_confirmation_score
+                
+            elif obv_momentum < 0 and price_momentum < 0:  # Both falling
+                if latest['OBV'] < latest['OBV_sma']:
+                    volume_confirmation_score = 3 * adx_strength
+                    signals['obv_price_bearish_confirm'] = True
+                else:
+                    volume_confirmation_score = 2 * adx_strength
+                    signals['obv_price_mild_bearish'] = True
+                    
+                sell_score += volume_confirmation_score
+                
+            # OBV Divergence
+            elif obv_momentum > 0 and price_momentum < 0:  # OBV up, price down
+                buy_score += 2 * adx_strength
+                signals['obv_bullish_divergence'] = True
+            elif obv_momentum < 0 and price_momentum > 0:  # OBV down, price up
+                sell_score += 2 * adx_strength
+                signals['obv_bearish_divergence'] = True
+        
+        # === 6. ENHANCED MACD ANALYSIS ===
+        macd_signal_strength = 0
+        
+        if (not pd.isna(latest['MACD']) and not pd.isna(latest['MACD_signal']) and 
+            not pd.isna(latest['MACD_hist']) and not pd.isna(prev['MACD_hist'])):
+            
+            # MACD Histogram momentum
+            hist_momentum = latest['MACD_hist'] - prev['MACD_hist']
+            
+            # MACD Line crossover với histogram confirmation
+            if latest['MACD'] > latest['MACD_signal'] and prev['MACD'] <= prev['MACD_signal']:
+                # Bullish crossover strength dựa trên histogram
+                if latest['MACD_hist'] > 0 and hist_momentum > 0:  # Strong bullish
+                    macd_signal_strength = 4 * adx_strength
+                    signals['macd_strong_bullish'] = True
+                elif hist_momentum > 0:  # Improving
+                    macd_signal_strength = 3 * adx_strength
+                    signals['macd_bullish_improving'] = True
+                else:  # Weak signal
+                    macd_signal_strength = 2 * adx_strength
+                    signals['macd_weak_bullish'] = True
+                    
+                buy_score += macd_signal_strength
+                
+            elif latest['MACD'] < latest['MACD_signal'] and prev['MACD'] >= prev['MACD_signal']:
+                # Bearish crossover
+                if latest['MACD_hist'] < 0 and hist_momentum < 0:  # Strong bearish
+                    macd_signal_strength = 4 * adx_strength
+                    signals['macd_strong_bearish'] = True
+                elif hist_momentum < 0:  # Deteriorating
+                    macd_signal_strength = 3 * adx_strength
+                    signals['macd_bearish_deteriorating'] = True
+                else:
+                    macd_signal_strength = 2 * adx_strength
+                    signals['macd_weak_bearish'] = True
+                    
+                sell_score += macd_signal_strength
+            
+            # MACD Zero line analysis
+            elif latest['MACD'] > 0 and prev['MACD'] <= 0:  # Cross above zero
+                buy_score += 2.5 * adx_strength
+                signals['macd_above_zero'] = True
+            elif latest['MACD'] < 0 and prev['MACD'] >= 0:  # Cross below zero
+                sell_score += 2.5 * adx_strength
+                signals['macd_below_zero'] = True
+        
+        # === 7. FIBONACCI RETRACEMENT ANALYSIS ===
+        fibonacci_signal_strength = 0
+        
+        if (not pd.isna(latest['fib_236']) and not pd.isna(latest['fib_382']) and 
+            not pd.isna(latest['fib_500']) and not pd.isna(latest['fib_618'])):
+            
+            current_price = latest['close']
+            fib_levels = [
+                ('23.6%', latest['fib_236']),
+                ('38.2%', latest['fib_382']),
+                ('50.0%', latest['fib_500']),
+                ('61.8%', latest['fib_618'])
+            ]
+            
+            # Check if price is near any Fibonacci level
+            for fib_name, fib_level in fib_levels:
+                price_distance = abs(current_price - fib_level) / current_price
+                
+                if price_distance < 0.008:  # Within 0.8% of Fibonacci level
+                    # Fibonacci bounce/rejection signals
+                    if current_price > prev['close']:  # Price bouncing up
+                        if fib_name in ['38.2%', '50.0%', '61.8%']:  # Strong support levels
+                            fibonacci_signal_strength = 3 * adx_strength
+                            signals[f'fib_{fib_name}_bounce'] = True
+                        else:
+                            fibonacci_signal_strength = 2 * adx_strength
+                            signals[f'fib_{fib_name}_mild_bounce'] = True
+                            
+                        buy_score += fibonacci_signal_strength
+                        
+                    elif current_price < prev['close']:  # Price rejecting down
+                        if fib_name in ['38.2%', '50.0%', '61.8%']:  # Strong resistance levels
+                            fibonacci_signal_strength = 3 * adx_strength
+                            signals[f'fib_{fib_name}_rejection'] = True
+                        else:
+                            fibonacci_signal_strength = 2 * adx_strength
+                            signals[f'fib_{fib_name}_mild_rejection'] = True
+                            
+                        sell_score += fibonacci_signal_strength
+                    break
+        
+        # === 8. ENHANCED CANDLESTICK PATTERN ANALYSIS ===
+        candlestick_signal_strength = 0
+        
+        # Bullish patterns với context
+        bullish_patterns = ['hammer', 'engulfing_bullish', 'morning_star']
+        for pattern in bullish_patterns:
+            if pattern in latest and latest[pattern] > 0:
+                # Pattern strength dựa trên vị trí và volume
+                pattern_strength = 2.5
+                
+                # Bonus nếu pattern xuất hiện ở support level
+                if (not pd.isna(latest['support']) and 
+                    abs(latest['close'] - latest['support']) / latest['close'] < 0.015):
+                    pattern_strength *= 1.5
+                    signals[f'{pattern}_at_support'] = True
+                
+                # Volume confirmation
+                if not pd.isna(latest['volume_ratio']) and latest['volume_ratio'] > 1.2:
+                    pattern_strength *= 1.2
+                    signals[f'{pattern}_volume_confirm'] = True
+                
+                candlestick_signal_strength += pattern_strength * adx_strength
+                signals[f'bullish_{pattern}'] = True
+        
+        if candlestick_signal_strength > 0:
+            buy_score += candlestick_signal_strength
+        
+        # Bearish patterns
+        bearish_patterns = ['hanging_man', 'evening_star']
+        candlestick_signal_strength = 0
+        
+        for pattern in bearish_patterns:
+            if pattern in latest and latest[pattern] < 0:  # Bearish patterns are negative
+                pattern_strength = 2.5
+                
+                # Bonus nếu pattern xuất hiện ở resistance level
+                if (not pd.isna(latest['resistance']) and 
+                    abs(latest['close'] - latest['resistance']) / latest['close'] < 0.015):
+                    pattern_strength *= 1.5
+                    signals[f'{pattern}_at_resistance'] = True
+                
+                # Volume confirmation
+                if not pd.isna(latest['volume_ratio']) and latest['volume_ratio'] > 1.2:
+                    pattern_strength *= 1.2
+                
+                candlestick_signal_strength += pattern_strength * adx_strength
+                signals[f'bearish_{pattern}'] = True
+        
+        if candlestick_signal_strength > 0:
+            sell_score += candlestick_signal_strength
+        
+        # Doji indecision penalty
+        if 'doji' in latest and latest['doji'] != 0:
+            buy_score *= 0.7
+            sell_score *= 0.7
+            signals['doji_indecision'] = True
+        
+        # === 9. PIVOT POINTS ANALYSIS ===
+        pivot_signal_strength = 0
+        
+        if (not pd.isna(latest.get('pivot', pd.NA)) and not pd.isna(latest.get('r1', pd.NA)) and 
+            not pd.isna(latest.get('s1', pd.NA))):
+            
+            current_price = latest['close']
+            pivot_levels = [
+                ('R3', latest.get('r3', latest.get('r1', 0) * 1.1)),
+                ('R2', latest.get('r2', latest.get('r1', 0) * 1.05)),
+                ('R1', latest.get('r1', 0)),
+                ('PIVOT', latest.get('pivot', 0)),
+                ('S1', latest.get('s1', 0)),
+                ('S2', latest.get('s2', latest.get('s1', 0) * 0.95)),
+                ('S3', latest.get('s3', latest.get('s1', 0) * 0.9))
+            ]
+            
+            for level_name, level_price in pivot_levels:
+                if pd.isna(level_price) or level_price == 0:
+                    continue
+                    
+                price_distance = abs(current_price - level_price) / current_price
+                
+                if price_distance < 0.01:  # Within 1% of pivot level
+                    if current_price > prev['close']:  # Bouncing up from support
+                        if level_name in ['S1', 'S2', 'S3', 'PIVOT']:
+                            pivot_signal_strength = 3 * adx_strength
+                            signals[f'pivot_{level_name}_bounce'] = True
+                            buy_score += pivot_signal_strength
+                            
+                    elif current_price < prev['close']:  # Rejecting down from resistance
+                        if level_name in ['R1', 'R2', 'R3', 'PIVOT']:
+                            pivot_signal_strength = 3 * adx_strength
+                            signals[f'pivot_{level_name}_rejection'] = True
+                            sell_score += pivot_signal_strength
+                    break
+        
+        # === 10. MARKET STRUCTURE ANALYSIS ===
+        # Apply sideway penalty and trend quality bonuses
+        buy_score *= sideway_penalty
+        sell_score *= sideway_penalty
+        
+        # Trend quality bonus
+        if trend_quality == "VERY_STRONG":
+            if buy_score > sell_score:
+                buy_score *= 1.2
+            else:
+                sell_score *= 1.2
+        
+        # === 11. FINAL SIGNAL CONSENSUS CHECK ===
+        # Multi-timeframe consensus bonus (if available from previous analysis)
+        signal_consensus = 0
+        strong_signals = ['ichimoku_bullish_cross', 'perfect_bullish_alignment', 
+                         'macd_strong_bullish', 'fib_50.0%_bounce', 'obv_price_bullish_confirm']
+        
+        consensus_count = sum(1 for signal in strong_signals if signals.get(signal, False))
+        if consensus_count >= 3:  # At least 3 strong bullish signals
+            buy_score *= 1.15  # Consensus bonus
+            signals['strong_bullish_consensus'] = True
+        
+        strong_bearish_signals = ['ichimoku_bearish_cross', 'perfect_bearish_alignment',
+                                'macd_strong_bearish', 'fib_50.0%_rejection', 'obv_price_bearish_confirm']
+        
+        bearish_consensus_count = sum(1 for signal in strong_bearish_signals if signals.get(signal, False))
+        if bearish_consensus_count >= 3:
+            sell_score *= 1.15
+            signals['strong_bearish_consensus'] = True
+        
+        return buy_score, sell_score, signals
         
         # RSI Signals (Trọng số điều chỉnh)
         if latest['RSI'] < 30 and latest['RSI'] > prev['RSI']:
