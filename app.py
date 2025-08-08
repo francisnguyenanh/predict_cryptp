@@ -254,6 +254,16 @@ def api_status():
             'error': str(e)
         }), 500
 
+def format_volume(vol):
+    if vol >= 1e9:
+        return f"{vol/1e9:.2f}B"
+    elif vol >= 1e6:
+        return f"{vol/1e6:.2f}M"
+    elif vol >= 1e3:
+        return f"{vol/1e3:.2f}K"
+    else:
+        return f"{vol:.2f}"
+    
 @app.route('/api/coins/<base_currency>')
 def api_get_coins(base_currency):
     """API lấy danh sách coins theo base currency"""
@@ -268,6 +278,8 @@ def api_get_coins(base_currency):
             limit = 15  # Top 15 cho analyze sell và backtest
             
         coins = crypto_app.get_top_coins_by_base_currency(base_currency, limit)
+        for coin in coins:
+            coin['volume_display'] = format_volume(coin.get('volume', 0))
         
         return jsonify({
             'success': True,

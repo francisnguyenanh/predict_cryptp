@@ -224,3 +224,13 @@ footer {
 ::-webkit-scrollbar-thumb:hover {
     background: #a8a8a8;
 }
+/* Giới hạn chiều rộng dropdown */
+#coinSelect {
+    max-width: 350px;
+    min-width: 220px;
+}
+/* Giới hạn chiều rộng popup dropdown */
+.form-select.dropdown-menu {
+    max-width: 350px !important;
+    min-width: 220px !important;
+}
