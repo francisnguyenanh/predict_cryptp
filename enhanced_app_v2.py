@@ -8,7 +8,7 @@ import numpy as np
 import requests
 import time
 from datetime import datetime, timedelta
-import talib
+# Thay thế TA-Lib bằng các hàm tự viết
 import warnings
 import os
 import json
@@ -18,6 +18,140 @@ from colorama import Fore, Back, Style
 
 warnings.filterwarnings('ignore')
 colorama.init()
+
+# ================== THAY THẾ TA-LIB BẰNG CÁC HÀM TỰ VIẾT ==================
+
+def calculate_ema(data, window):
+    """Tính Exponential Moving Average"""
+    return data.ewm(span=window, adjust=False).mean()
+
+def calculate_sma(data, window):
+    """Tính Simple Moving Average"""
+    return data.rolling(window=window).mean()
+
+def calculate_rsi(data, window=14):
+    """Tính Relative Strength Index"""
+    delta = data.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def calculate_macd(data, fast=12, slow=26, signal=9):
+    """Tính MACD"""
+    ema_fast = calculate_ema(data, fast)
+    ema_slow = calculate_ema(data, slow)
+    macd = ema_fast - ema_slow
+    macd_signal = calculate_ema(macd, signal)
+    macd_hist = macd - macd_signal
+    return macd, macd_signal, macd_hist
+
+def calculate_bollinger_bands(data, window=20, num_std=2):
+    """Tính Bollinger Bands"""
+    sma = calculate_sma(data, window)
+    std = data.rolling(window=window).std()
+    upper = sma + (std * num_std)
+    lower = sma - (std * num_std)
+    return upper, sma, lower
+
+def calculate_atr(high, low, close, window=14):
+    """Tính Average True Range"""
+    tr1 = high - low
+    tr2 = abs(high - close.shift(1))
+    tr3 = abs(low - close.shift(1))
+    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = tr.rolling(window=window).mean()
+    return atr
+
+def calculate_stochastic(high, low, close, k_window=14, d_window=3):
+    """Tính Stochastic Oscillator"""
+    lowest_low = low.rolling(window=k_window).min()
+    highest_high = high.rolling(window=k_window).max()
+    k_percent = 100 * ((close - lowest_low) / (highest_high - lowest_low))
+    d_percent = calculate_sma(k_percent, d_window)
+    return k_percent, d_percent
+
+def calculate_obv(close, volume):
+    """Tính On-Balance Volume"""
+    obv = (np.sign(close.diff()) * volume).fillna(0).cumsum()
+    return obv
+
+def calculate_adx(high, low, close, window=14):
+    """Tính Average Directional Index"""
+    tr = calculate_atr(high, low, close, 1)
+    
+    plus_dm = high.diff()
+    minus_dm = -low.diff()
+    
+    plus_dm = np.where((plus_dm > minus_dm) & (plus_dm > 0), plus_dm, 0)
+    minus_dm = np.where((minus_dm > plus_dm) & (minus_dm > 0), minus_dm, 0)
+    
+    plus_dm = pd.Series(plus_dm).rolling(window=window).mean()
+    minus_dm = pd.Series(minus_dm).rolling(window=window).mean()
+    tr_avg = tr.rolling(window=window).mean()
+    
+    plus_di = 100 * (plus_dm / tr_avg)
+    minus_di = 100 * (minus_dm / tr_avg)
+    
+    dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
+    adx = dx.rolling(window=window).mean()
+    
+    return adx, plus_di, minus_di
+
+def is_hammer(open_price, high, low, close):
+    """Kiểm tra nến Hammer"""
+    body = abs(close - open_price)
+    upper_shadow = high - max(close, open_price)
+    lower_shadow = min(close, open_price) - low
+    
+    is_hammer = (lower_shadow > 2 * body) & (upper_shadow < body)
+    return is_hammer.astype(int) * 100
+
+def is_doji(open_price, high, low, close):
+    """Kiểm tra nến Doji"""
+    body = abs(close - open_price)
+    total_range = high - low
+    
+    is_doji = body < (total_range * 0.1)
+    return is_doji.astype(int) * 100
+
+def is_engulfing_bullish(open_price, high, low, close):
+    """Kiểm tra mô hình Bullish Engulfing"""
+    prev_open = open_price.shift(1)
+    prev_close = close.shift(1)
+    
+    is_bullish = (prev_close < prev_open) & (close > open_price) & \
+                 (open_price < prev_close) & (close > prev_open)
+    return is_bullish.astype(int) * 100
+
+def is_morning_star(open_price, high, low, close):
+    """Kiểm tra mô hình Morning Star (đơn giản hóa)"""
+    prev_close = close.shift(1)
+    prev2_close = close.shift(2)
+    
+    is_morning = (prev2_close > prev_close) & (close > prev_close) & \
+                 (close > open_price)
+    return is_morning.astype(int) * 100
+
+def is_hanging_man(open_price, high, low, close):
+    """Kiểm tra nến Hanging Man"""
+    body = abs(close - open_price)
+    upper_shadow = high - max(close, open_price)
+    lower_shadow = min(close, open_price) - low
+    
+    is_hanging = (lower_shadow > 2 * body) & (upper_shadow < body) & \
+                 (close < open_price)
+    return is_hanging.astype(int) * 100
+
+def is_evening_star(open_price, high, low, close):
+    """Kiểm tra mô hình Evening Star (đơn giản hóa)"""
+    prev_close = close.shift(1)
+    prev2_close = close.shift(2)
+    
+    is_evening = (prev2_close < prev_close) & (close < prev_close) & \
+                 (close < open_price)
+    return is_evening.astype(int) * 100
 
 class PredictionTracker:
     """Class để theo dõi và đánh giá kết quả dự đoán"""
@@ -214,20 +348,20 @@ class EnhancedCryptoPredictionAppV2:
             
         try:
             # Moving Averages
-            df['EMA_10'] = talib.EMA(df['close'], timeperiod=10)
-            df['EMA_20'] = talib.EMA(df['close'], timeperiod=20)
-            df['EMA_50'] = talib.EMA(df['close'], timeperiod=50)
+            df['EMA_10'] = calculate_ema(df['close'], 10)
+            df['EMA_20'] = calculate_ema(df['close'], 20)
+            df['EMA_50'] = calculate_ema(df['close'], 50)
             
             # Momentum Indicators
-            df['RSI'] = talib.RSI(df['close'], timeperiod=14)
-            df['MACD'], df['MACD_signal'], df['MACD_hist'] = talib.MACD(df['close'])
+            df['RSI'] = calculate_rsi(df['close'], 14)
+            df['MACD'], df['MACD_signal'], df['MACD_hist'] = calculate_macd(df['close'])
             
             # Volatility Indicators
-            df['BB_upper'], df['BB_middle'], df['BB_lower'] = talib.BBANDS(df['close'])
-            df['ATR'] = talib.ATR(df['high'], df['low'], df['close'], timeperiod=14)
+            df['BB_upper'], df['BB_middle'], df['BB_lower'] = calculate_bollinger_bands(df['close'])
+            df['ATR'] = calculate_atr(df['high'], df['low'], df['close'], 14)
             
             # Volume Indicators
-            df['volume_sma'] = talib.SMA(df['volume'], timeperiod=20)
+            df['volume_sma'] = calculate_sma(df['volume'], 20)
             df['volume_ratio'] = df['volume'] / df['volume_sma']
             
             # Support/Resistance
@@ -254,17 +388,15 @@ class EnhancedCryptoPredictionAppV2:
             df['chikou_span'] = df['close'].shift(-26)
             
             # Stochastic Oscillator
-            df['stoch_k'], df['stoch_d'] = talib.STOCH(df['high'], df['low'], df['close'], 
-                                                      fastk_period=14, slowk_period=3, slowd_period=3)
+            df['stoch_k'], df['stoch_d'] = calculate_stochastic(df['high'], df['low'], df['close'], 
+                                                               k_window=14, d_window=3)
             
             # On-Balance Volume (OBV)
-            df['OBV'] = talib.OBV(df['close'], df['volume'])
-            df['OBV_sma'] = talib.SMA(df['OBV'], timeperiod=20)
+            df['OBV'] = calculate_obv(df['close'], df['volume'])
+            df['OBV_sma'] = calculate_sma(df['OBV'], 20)
             
             # Average Directional Index (ADX) - Đo sức mạnh xu hướng
-            df['ADX'] = talib.ADX(df['high'], df['low'], df['close'], timeperiod=14)
-            df['DI_plus'] = talib.PLUS_DI(df['high'], df['low'], df['close'], timeperiod=14)
-            df['DI_minus'] = talib.MINUS_DI(df['high'], df['low'], df['close'], timeperiod=14)
+            df['ADX'], df['DI_plus'], df['DI_minus'] = calculate_adx(df['high'], df['low'], df['close'], 14)
             
             # Bollinger Band Width (để phát hiện thị trường sideway)
             df['BB_width'] = (df['BB_upper'] - df['BB_lower']) / df['BB_middle']
@@ -316,16 +448,16 @@ class EnhancedCryptoPredictionAppV2:
         """Phát hiện các mô hình nến quan trọng"""
         try:
             # Bullish patterns
-            df['hammer'] = talib.CDLHAMMER(df['open'], df['high'], df['low'], df['close'])
-            df['engulfing_bullish'] = talib.CDLENGULFING(df['open'], df['high'], df['low'], df['close'])
-            df['morning_star'] = talib.CDLMORNINGSTAR(df['open'], df['high'], df['low'], df['close'])
+            df['hammer'] = is_hammer(df['open'], df['high'], df['low'], df['close'])
+            df['engulfing_bullish'] = is_engulfing_bullish(df['open'], df['high'], df['low'], df['close'])
+            df['morning_star'] = is_morning_star(df['open'], df['high'], df['low'], df['close'])
             
             # Bearish patterns  
-            df['hanging_man'] = talib.CDLHANGINGMAN(df['open'], df['high'], df['low'], df['close'])
-            df['evening_star'] = talib.CDLEVENINGSTAR(df['open'], df['high'], df['low'], df['close'])
+            df['hanging_man'] = is_hanging_man(df['open'], df['high'], df['low'], df['close'])
+            df['evening_star'] = is_evening_star(df['open'], df['high'], df['low'], df['close'])
             
             # Reversal patterns
-            df['doji'] = talib.CDLDOJI(df['open'], df['high'], df['low'], df['close'])
+            df['doji'] = is_doji(df['open'], df['high'], df['low'], df['close'])
             
             return df
         except Exception:

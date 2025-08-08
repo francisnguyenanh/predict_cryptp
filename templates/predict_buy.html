@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+
+{% block title %}Dự đoán MUA - Crypto Prediction{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">
+                        <i class="bi bi-arrow-up-circle text-success me-2"></i>
+                        Dự đoán MUA
+                    </h2>
+                    <p class="text-muted mb-0">Tìm kiếm cơ hội đầu tư tốt nhất trên nhiều khung thời gian</p>
+                </div>
+                <button id="analyzeBtn" class="btn btn-success btn-lg">
+                    <i class="bi bi-play-fill me-2"></i>
+                    Chạy phân tích
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Analysis Status -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div id="analysisStatus" class="alert alert-info d-none" role="alert">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border spinner-border-sm me-3" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <div>
+                        <strong>Đang phân tích...</strong>
+                        <div class="progress mt-2" style="width: 300px;">
+                            <div id="analysisProgress" class="progress-bar progress-bar-striped progress-bar-animated" style="width: 0%"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Alert -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div id="errorAlert" class="alert alert-danger d-none" role="alert">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                <span id="errorMessage"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="resultsSection" class="d-none">
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-success text-white">
+                        <h4 class="mb-0">
+                            <i class="bi bi-trophy me-2"></i>
+                            Gợi ý coin tốt nhất cho từng khung thời gian
+                        </h4>
+                    </div>
+                    <div class="card-body p-0">
+                        <div id="resultsContainer">
+                            <!-- Results will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analysis Summary -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm">
+                    <div class="card-header bg-light">
+                        <h5 class="mb-0">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Thông tin phân tích
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Thời gian phân tích:</strong> <span id="analysisTime"></span></p>
+                                <p><strong>Số coin được phân tích:</strong> <span class="badge bg-primary">7</span></p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Khung thời gian:</strong> 60m, 4h, 1d</p>
+                                <p><strong>Chỉ báo sử dụng:</strong> RSI, MACD, Ichimoku, Fibonacci, Volume</p>
+                            </div>
+                        </div>
+                        
+                        <div class="alert alert-warning mt-3" role="alert">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Lưu ý:</strong> Đây chỉ là công cụ hỗ trợ phân tích. Vui lòng tự nghiên cứu thêm trước khi đầu tư. Crypto là khoản đầu tư có rủi ro cao.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading placeholder -->
+    <div id="loadingPlaceholder" class="d-none">
+        <div class="row">
+            {% for i in range(3) %}
+            <div class="col-12 mb-4">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex">
+                            <div class="placeholder-glow flex-fill">
+                                <div class="placeholder col-3 mb-2"></div>
+                                <div class="placeholder col-8 mb-2"></div>
+                                <div class="placeholder col-6"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- Result Template -->
+<template id="resultTemplate">
+    <div class="border-bottom">
+        <div class="p-4">
+            <div class="row align-items-center">
+                <div class="col-md-2">
+                    <h4 class="timeframe-badge mb-0"></h4>
+                </div>
+                <div class="col-md-10">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <h5 class="mb-2">
+                                <i class="bi bi-coin me-2"></i>
+                                <span class="coin-symbol"></span>
+                                <span class="signal-badge ms-2"></span>
+                            </h5>
+                            <div class="row text-sm">
+                                <div class="col-6">
+                                    <p class="mb-1"><strong>Giá vào lệnh:</strong> <span class="entry-price"></span></p>
+                                    <p class="mb-1"><strong>Stop Loss:</strong> <span class="stop-loss"></span> (<span class="sl-percent text-danger"></span>%)</p>
+                                </div>
+                                <div class="col-6">
+                                    <p class="mb-1"><strong>TP1:</strong> <span class="tp1"></span> (<span class="tp1-percent text-success"></span>%)</p>
+                                    <p class="mb-1"><strong>TP2:</strong> <span class="tp2"></span> (<span class="tp2-percent text-success"></span>%)</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4 text-end">
+                            <div class="accuracy-display mb-2">
+                                <span class="badge accuracy-badge"></span>
+                            </div>
+                            <div class="quality-display">
+                                <span class="badge quality-badge"></span>
+                            </div>
+                            <p class="text-muted small mt-2 mb-0">
+                                <i class="bi bi-clock me-1"></i>
+                                <span class="analysis-time"></span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+$(document).ready(function() {
+    $('#analyzeBtn').click(function() {
+        runAnalysis();
+    });
+    
+    function runAnalysis() {
+        // Show loading state
+        $('#analyzeBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split me-2"></i>Đang phân tích...');
+        $('#analysisStatus').removeClass('d-none');
+        $('#errorAlert').addClass('d-none');
+        $('#resultsSection').addClass('d-none');
+        
+        // Animate progress bar
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 30;
+            if (progress > 90) progress = 90;
+            $('#analysisProgress').css('width', progress + '%');
+        }, 500);
+        
+        // Make API call
+        $.ajax({
+            url: '/api/predict_buy',
+            method: 'POST',
+            contentType: 'application/json',
+            timeout: 120000, // 2 minutes timeout
+            success: function(response) {
+                clearInterval(progressInterval);
+                $('#analysisProgress').css('width', '100%');
+                
+                setTimeout(() => {
+                    $('#analysisStatus').addClass('d-none');
+                    if (response.success) {
+                        displayResults(response.results, response.timestamp);
+                    } else {
+                        showError('Có lỗi xảy ra trong quá trình phân tích');
+                    }
+                    resetButton();
+                }, 1000);
+            },
+            error: function(xhr, status, error) {
+                clearInterval(progressInterval);
+                $('#analysisStatus').addClass('d-none');
+                
+                let errorMsg = 'Không thể kết nối đến server';
+                if (xhr.responseJSON && xhr.responseJSON.error) {
+                    errorMsg = xhr.responseJSON.error;
+                } else if (status === 'timeout') {
+                    errorMsg = 'Timeout - Phân tích mất quá nhiều thời gian';
+                }
+                
+                showError(errorMsg);
+                resetButton();
+            }
+        });
+    }
+    
+    function displayResults(results, timestamp) {
+        if (!results || results.length === 0) {
+            showError('Không có kết quả phân tích');
+            return;
+        }
+        
+        const container = $('#resultsContainer');
+        container.empty();
+        
+        results.forEach(result => {
+            const template = $('#resultTemplate').prop('content').cloneNode(true);
+            const $template = $(template);
+            
+            // Timeframe badge
+            const timeframeBadges = {
+                '60m': '<span class="badge bg-info fs-6">📈 60M</span>',
+                '4h': '<span class="badge bg-warning fs-6">📈 4H</span>', 
+                '1d': '<span class="badge bg-primary fs-6">📈 1D</span>'
+            };
+            $template.find('.timeframe-badge').html(timeframeBadges[result.timeframe] || result.timeframe_display);
+            
+            // Basic info
+            $template.find('.coin-symbol').text(result.symbol);
+            $template.find('.entry-price').text(result.entry_price);
+            $template.find('.stop-loss').text(result.stop_loss);
+            $template.find('.tp1').text(result.tp1);
+            $template.find('.tp2').text(result.tp2);
+            
+            // Percentages
+            $template.find('.sl-percent').text('-' + result.sl_percent);
+            $template.find('.tp1-percent').text('+' + result.tp1_percent);
+            $template.find('.tp2-percent').text('+' + result.tp2_percent);
+            
+            // Signal badge
+            if (result.signal_type === 'BUY') {
+                $template.find('.signal-badge').html('<span class="badge bg-success">MUA</span>');
+            } else {
+                $template.find('.signal-badge').html('<span class="badge bg-secondary">CHỜ</span>');
+            }
+            
+            // Accuracy
+            const accuracy = parseFloat(result.success_probability.replace('%', ''));
+            let accuracyClass = 'bg-secondary';
+            if (accuracy >= 70) accuracyClass = 'bg-success';
+            else if (accuracy >= 50) accuracyClass = 'bg-warning';
+            else if (accuracy >= 30) accuracyClass = 'bg-info';
+            
+            $template.find('.accuracy-badge').addClass(accuracyClass).text('Tỷ lệ: ' + result.success_probability);
+            
+            // Quality
+            const qualityClasses = {
+                'HIGH': 'bg-success',
+                'MEDIUM': 'bg-warning', 
+                'LOW': 'bg-danger'
+            };
+            $template.find('.quality-badge').addClass(qualityClasses[result.entry_quality] || 'bg-secondary').text(result.entry_quality);
+            
+            // Time
+            $template.find('.analysis-time').text(result.analysis_time);
+            
+            container.append($template);
+        });
+        
+        $('#analysisTime').text(timestamp);
+        $('#resultsSection').removeClass('d-none');
+        
+        // Scroll to results
+        $('html, body').animate({
+            scrollTop: $('#resultsSection').offset().top - 100
+        }, 1000);
+    }
+    
+    function showError(message) {
+        $('#errorMessage').text(message);
+        $('#errorAlert').removeClass('d-none');
+    }
+    
+    function resetButton() {
+        $('#analyzeBtn').prop('disabled', false).html('<i class="bi bi-play-fill me-2"></i>Chạy phân tích');
+    }
+});
+</script>
+{% endblock %}

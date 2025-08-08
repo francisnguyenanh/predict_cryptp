@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{% block title %}Trang chủ - Crypto Prediction{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Hero Section -->
+
+    <!-- Feature Cards -->
+    <div class="row mb-5">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body text-center">
+                    <div class="bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <i class="bi bi-arrow-up-circle text-success" style="font-size: 2rem;"></i>
+                    </div>
+                    <h3 class="card-title text-success">Dự đoán MUA</h3>
+                    <p class="card-text text-muted">
+                        Tìm kiếm các coin tiềm năng với tín hiệu mua mạnh trên nhiều khung thời gian (60m, 4h, 1d)
+                    </p>
+                    <ul class="list-unstyled text-start">
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Phân tích đa khung thời gian</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Tính toán Take Profit & Stop Loss</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Đánh giá xác suất thành công</li>
+                        <li><i class="bi bi-check-circle text-success me-2"></i>Fibonacci & Ichimoku analysis</li>
+                    </ul>
+                    <a href="{{ url_for('predict_buy') }}" class="btn btn-success btn-lg">
+                        <i class="bi bi-play-fill me-2"></i>Bắt đầu phân tích
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-6 mb-4">
+            <div class="card h-100 shadow-sm border-0">
+                <div class="card-body text-center">
+                    <div class="bg-warning bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 80px; height: 80px;">
+                        <i class="bi bi-arrow-down-circle text-warning" style="font-size: 2rem;"></i>
+                    </div>
+                    <h3 class="card-title text-warning">Phân tích BÁN</h3>
+                    <p class="card-text text-muted">
+                        Phân tích xu hướng của coin đang nắm giữ để quyết định Hold hay Sell
+                    </p>
+                    <ul class="list-unstyled text-start">
+                        <li><i class="bi bi-check-circle text-warning me-2"></i>Phân tích xu hướng real-time</li>
+                        <li><i class="bi bi-check-circle text-warning me-2"></i>Khuyến nghị Hold/Sell/Wait</li>
+                        <li><i class="bi bi-check-circle text-warning me-2"></i>Dự báo mức giá tiếp theo</li>
+                        <li><i class="bi bi-check-circle text-warning me-2"></i>Quản lý rủi ro tối ưu</li>
+                    </ul>
+                    <a href="{{ url_for('analyze_sell') }}" class="btn btn-warning btn-lg">
+                        <i class="bi bi-search me-2"></i>Phân tích ngay
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Supported Pairs -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-light">
+                    <h4 class="mb-0">
+                        <i class="bi bi-currency-exchange me-2"></i>
+                        Các cặp coin được hỗ trợ
+                    </h4>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for pair in pairs %}
+                        <div class="col-md-3 col-sm-4 col-6 mb-3">
+                            <div class="bg-light rounded-3 p-3 text-center">
+                                <i class="bi bi-coin text-primary" style="font-size: 1.5rem;"></i>
+                                <h6 class="mt-2 mb-0">{{ pair }}</h6>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Features -->
+    <div class="row mb-5">
+        <div class="col-12">
+            <h3 class="text-center mb-4">Tính năng nổi bật</h3>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="text-center">
+                <div class="bg-primary bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                    <i class="bi bi-lightning-charge text-primary" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5>Phân tích real-time</h5>
+                <p class="text-muted">Dữ liệu được cập nhật liên tục từ Binance API</p>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="text-center">
+                <div class="bg-info bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                    <i class="bi bi-diagram-3 text-info" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5>Đa chỉ báo kỹ thuật</h5>
+                <p class="text-muted">Sử dụng 10+ chỉ báo như RSI, MACD, Bollinger Bands, Ichimoku</p>
+            </div>
+        </div>
+        
+        <div class="col-md-4 mb-4">
+            <div class="text-center">
+                <div class="bg-success bg-opacity-10 rounded-circle d-inline-flex align-items-center justify-content-center mb-3" style="width: 60px; height: 60px;">
+                    <i class="bi bi-shield-check text-success" style="font-size: 1.5rem;"></i>
+                </div>
+                <h5>Quản lý rủi ro</h5>
+                <p class="text-muted">Tự động tính toán Stop Loss và Take Profit tối ưu</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card bg-light border-0">
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-md-3">
+                            <h4 class="text-primary">{{ pairs|length }}</h4>
+                            <p class="text-muted mb-0">Cặp coin</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-success">3</h4>
+                            <p class="text-muted mb-0">Khung thời gian</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-info">15+</h4>
+                            <p class="text-muted mb-0">Chỉ báo kỹ thuật</p>
+                        </div>
+                        <div class="col-md-3">
+                            <h4 class="text-warning">24/7</h4>
+                            <p class="text-muted mb-0">Hoạt động</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+$(document).ready(function() {
+    // Animation cho feature cards
+    $('.card').hover(
+        function() {
+            $(this).addClass('shadow-lg').removeClass('shadow-sm');
+        },
+        function() {
+            $(this).addClass('shadow-sm').removeClass('shadow-lg');
+        }
+    );
+});
+</script>
+{% endblock %}
