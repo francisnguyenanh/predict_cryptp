@@ -20,10 +20,44 @@
                         <i class="bi bi-gear me-2"></i>
                         Cấu hình Pattern
                     </button>
-                    <button id="analyzeBtn" class="btn btn-success btn-lg">
+                    <button id="analyzeBtn" class="btn btn-success btn-lg" disabled>
                         <i class="bi bi-play-fill me-2"></i>
                         Chạy phân tích
                     </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Base Currency Selection -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-light">
+                    <h5 class="mb-0">
+                        <i class="bi bi-currency-exchange me-2"></i>
+                        Chọn loại tiền tệ cơ sở
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="baseCurrencySelect" class="form-label">Base Currency</label>
+                            <select class="form-select form-select-lg" id="baseCurrencySelect">
+                                <option value="">Chọn base currency...</option>
+                                {% for currency in base_currencies %}
+                                <option value="{{ currency }}">{{ currency }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Thông tin</label>
+                            <div class="alert alert-info mb-0">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Hệ thống sẽ phân tích <strong>Top 10 coins</strong> có volume giao dịch cao nhất
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -177,11 +211,26 @@
 {% block extra_scripts %}
 <script>
 $(document).ready(function() {
-    $('#analyzeBtn').click(function() {
-        runAnalysis();
+    // Enable analyze button when base currency is selected
+    $('#baseCurrencySelect').change(function() {
+        const selected = $(this).val();
+        $('#analyzeBtn').prop('disabled', !selected);
+        
+        if (selected) {
+            $('#analyzeBtn').html('<i class="bi bi-play-fill me-2"></i>Chạy phân tích');
+        }
     });
     
-    function runAnalysis() {
+    $('#analyzeBtn').click(function() {
+        const baseCurrency = $('#baseCurrencySelect').val();
+        if (baseCurrency) {
+            runAnalysis(baseCurrency);
+        } else {
+            alert('Vui lòng chọn base currency');
+        }
+    });
+    
+    function runAnalysis(baseCurrency) {
         // Show loading state
         $('#analyzeBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split me-2"></i>Đang phân tích...');
         $('#analysisStatus').removeClass('d-none');
@@ -201,6 +250,9 @@ $(document).ready(function() {
             url: '/api/predict_buy',
             method: 'POST',
             contentType: 'application/json',
+            data: JSON.stringify({
+                base_currency: baseCurrency
+            }),
             timeout: 120000, // 2 minutes timeout
             success: function(response) {
                 clearInterval(progressInterval);
@@ -311,7 +363,8 @@ $(document).ready(function() {
     }
     
     function resetButton() {
-        $('#analyzeBtn').prop('disabled', false).html('<i class="bi bi-play-fill me-2"></i>Chạy phân tích');
+        const baseCurrency = $('#baseCurrencySelect').val();
+        $('#analyzeBtn').prop('disabled', !baseCurrency).html('<i class="bi bi-play-fill me-2"></i>Chạy phân tích');
     }
 
     // Load patterns on page load

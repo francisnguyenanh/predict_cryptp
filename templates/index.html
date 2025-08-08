@@ -55,27 +55,51 @@
         </div>
     </div>
 
-    <!-- Supported Pairs -->
+    <!-- Supported Base Currencies -->
     <div class="row mb-5">
         <div class="col-12">
             <div class="card shadow-sm border-0">
                 <div class="card-header bg-light">
                     <h4 class="mb-0">
                         <i class="bi bi-currency-exchange me-2"></i>
-                        Các cặp coin được hỗ trợ
+                        Các loại tiền tệ được hỗ trợ
                     </h4>
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        {% for pair in pairs %}
-                        <div class="col-md-3 col-sm-4 col-6 mb-3">
-                            <div class="bg-light rounded-3 p-3 text-center">
-                                <i class="bi bi-coin text-primary" style="font-size: 1.5rem;"></i>
-                                <h6 class="mt-2 mb-0">{{ pair }}</h6>
+                        {% for currency in base_currencies %}
+                        <div class="col-md-6 col-sm-6 col-12 mb-3">
+                            <div class="bg-primary bg-opacity-10 rounded-3 p-4 text-center">
+                                <i class="bi bi-currency-exchange text-primary" style="font-size: 2rem;"></i>
+                                <h5 class="mt-2 mb-1">{{ currency }}</h5>
+                                <small class="text-muted">Base Currency</small>
                             </div>
                         </div>
                         {% endfor %}
                     </div>
+                    
+                    <!-- Sample coins display -->
+                    {% if sample_coins %}
+                    <hr class="my-4">
+                    <h6 class="text-muted mb-3">
+                        <i class="bi bi-star me-2"></i>
+                        Top coins ví dụ (USDT)
+                    </h6>
+                    <div class="row">
+                        {% for coin in sample_coins %}
+                        <div class="col-md-3 col-sm-4 col-6 mb-2">
+                            <div class="bg-light rounded-3 p-2 text-center">
+                                <i class="bi bi-coin text-warning" style="font-size: 1.2rem;"></i>
+                                <small class="d-block mt-1"><strong>{{ coin.baseAsset }}</strong></small>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="alert alert-info mt-3 mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Danh sách coins được cập nhật tự động từ Binance API theo volume giao dịch 24h
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -125,8 +149,8 @@
                 <div class="card-body">
                     <div class="row text-center">
                         <div class="col-md-3">
-                            <h4 class="text-primary">{{ pairs|length }}</h4>
-                            <p class="text-muted mb-0">Cặp coin</p>
+                            <h4 class="text-primary">{{ base_currencies|length }}</h4>
+                            <p class="text-muted mb-0">Base currencies</p>
                         </div>
                         <div class="col-md-3">
                             <h4 class="text-success">3</h4>

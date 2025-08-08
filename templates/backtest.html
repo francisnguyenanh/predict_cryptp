@@ -91,14 +91,27 @@
                 </div>
                 <div class="card-body">
                     <form id="backtestForm">
-                        <div class="mb-3">
-                            <label for="symbolSelect" class="form-label">Chọn Coin</label>
-                            <select class="form-select" id="symbolSelect" required>
-                                <option value="">-- Chọn coin để backtest --</option>
-                                {% for pair in pairs %}
-                                <option value="{{ pair }}">{{ pair }}</option>
-                                {% endfor %}
-                            </select>
+                        <div class="alert alert-info" role="alert">
+                            <i class="bi bi-info-circle me-2"></i>
+                            Sẽ backtest với <strong>top 15 coin</strong> có volume cao nhất của base currency đã chọn
+                        </div>
+                        
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="baseCurrencySelect" class="form-label">Base Currency</label>
+                                <select class="form-select" id="baseCurrencySelect" required>
+                                    <option value="">Chọn base currency</option>
+                                    {% for currency in base_currencies %}
+                                    <option value="{{ currency }}">{{ currency }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="symbolSelect" class="form-label">Chọn Coin</label>
+                                <select class="form-select" id="symbolSelect" required disabled>
+                                    <option value="">Chọn base currency trước</option>
+                                </select>
+                            </div>
                         </div>
                         
                         <div class="mb-3">
@@ -245,6 +258,54 @@
 {% block extra_scripts %}
 <script>
 $(document).ready(function() {
+    // Handle base currency selection
+    $('#baseCurrencySelect').change(function() {
+        const baseCurrency = $(this).val();
+        const symbolSelect = $('#symbolSelect');
+        const backtestBtn = $('#backtestBtn');
+        const compareBtn = $('#compareBtn');
+        
+        if (baseCurrency) {
+            // Enable coin selection and show loading
+            symbolSelect.prop('disabled', false).html('<option value="">Đang tải...</option>');
+            backtestBtn.prop('disabled', true);
+            compareBtn.prop('disabled', true);
+            
+            // Fetch top coins for selected base currency
+            $.ajax({
+                url: `/api/coins/${baseCurrency}`,
+                method: 'GET',
+                success: function(response) {
+                    if (response.success && response.coins) {
+                        // Clear and populate coin options
+                        symbolSelect.empty().append('<option value="">Chọn coin</option>');
+                        
+                        response.coins.forEach(function(coin) {
+                            symbolSelect.append(`<option value="${coin.symbol}">${coin.symbol} - ${coin.volume_display}</option>`);
+                        });
+                    } else {
+                        symbolSelect.html('<option value="">Lỗi tải dữ liệu</option>');
+                    }
+                },
+                error: function() {
+                    symbolSelect.html('<option value="">Lỗi kết nối</option>');
+                }
+            });
+        } else {
+            // Reset coin selection
+            symbolSelect.prop('disabled', true).html('<option value="">Chọn base currency trước</option>');
+            backtestBtn.prop('disabled', true);
+            compareBtn.prop('disabled', true);
+        }
+    });
+    
+    // Handle coin selection
+    $('#symbolSelect').change(function() {
+        const selected = $(this).val();
+        $('#backtestBtn').prop('disabled', !selected);
+        $('#compareBtn').prop('disabled', !selected);
+    });
+    
     $('#backtestForm').on('submit', function(e) {
         e.preventDefault();
         

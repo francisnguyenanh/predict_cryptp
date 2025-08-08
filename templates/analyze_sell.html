@@ -27,20 +27,34 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-6">
-                            <label for="coinSelect" class="form-label">Chọn coin:</label>
-                            <select id="coinSelect" class="form-select form-select-lg">
-                                <option value="">-- Chọn coin --</option>
-                                {% for pair in pairs %}
-                                <option value="{{ pair }}">{{ pair }}</option>
+                        <div class="col-md-4">
+                            <label for="baseCurrencySelect" class="form-label">Base Currency:</label>
+                            <select id="baseCurrencySelect" class="form-select">
+                                <option value="">Chọn base currency...</option>
+                                {% for currency in base_currencies %}
+                                <option value="{{ currency }}">{{ currency }}</option>
                                 {% endfor %}
                             </select>
                         </div>
-                        <div class="col-md-6 d-flex align-items-end">
+                        <div class="col-md-4">
+                            <label for="coinSelect" class="form-label">Chọn coin:</label>
+                            <select id="coinSelect" class="form-select" disabled>
+                                <option value="">-- Chọn base currency trước --</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
                             <button id="analyzeBtn" class="btn btn-warning btn-lg" disabled>
                                 <i class="bi bi-search me-2"></i>
                                 Phân tích xu hướng
                             </button>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="alert alert-info mb-0">
+                                <i class="bi bi-info-circle me-2"></i>
+                                Chọn base currency để xem <strong>Top 15 coins</strong> có volume giao dịch cao nhất
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -222,6 +236,45 @@
 {% block extra_scripts %}
 <script>
 $(document).ready(function() {
+    // Handle base currency selection
+    $('#baseCurrencySelect').change(function() {
+        const baseCurrency = $(this).val();
+        const coinSelect = $('#coinSelect');
+        const analyzeBtn = $('#analyzeBtn');
+        
+        if (baseCurrency) {
+            // Enable coin selection and show loading
+            coinSelect.prop('disabled', false).html('<option value="">Đang tải...</option>');
+            analyzeBtn.prop('disabled', true);
+            
+            // Fetch top coins for selected base currency
+            $.ajax({
+                url: `/api/coins/${baseCurrency}`,
+                method: 'GET',
+                success: function(response) {
+                    if (response.success && response.coins) {
+                        // Clear and populate coin options
+                        coinSelect.empty().append('<option value="">Chọn coin</option>');
+                        
+                        response.coins.forEach(function(coin) {
+                            coinSelect.append(`<option value="${coin.symbol}">${coin.symbol} - ${coin.volume_display}</option>`);
+                        });
+                    } else {
+                        coinSelect.html('<option value="">Lỗi tải dữ liệu</option>');
+                    }
+                },
+                error: function() {
+                    coinSelect.html('<option value="">Lỗi kết nối</option>');
+                }
+            });
+        } else {
+            // Reset coin selection
+            coinSelect.prop('disabled', true).html('<option value="">Chọn base currency trước</option>');
+            analyzeBtn.prop('disabled', true);
+        }
+    });
+    
+    // Handle coin selection
     $('#coinSelect').change(function() {
         const selected = $(this).val();
         $('#analyzeBtn').prop('disabled', !selected);

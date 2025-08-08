@@ -19,18 +19,37 @@ crypto_app = EnhancedCryptoPredictionAppV2()
 @app.route('/')
 def index():
     """Trang chủ"""
-    return render_template('index.html', pairs=crypto_app.pairs)
+    # Get sample coins for display
+    sample_coins = crypto_app.get_top_coins_by_base_currency('USDT', 8)
+    base_currencies = crypto_app.get_available_base_currencies()
+    return render_template('index.html', 
+                         sample_coins=sample_coins, 
+                         base_currencies=base_currencies)
 
 @app.route('/predict_buy')
 def predict_buy():
     """Trang dự đoán mua"""
-    return render_template('predict_buy.html')
+    base_currencies = crypto_app.get_available_base_currencies()
+    return render_template('predict_buy.html', base_currencies=base_currencies)
 
 @app.route('/api/predict_buy', methods=['POST'])
 def api_predict_buy():
     """API dự đoán mua - phân tích đa khung thời gian"""
     try:
-        results = crypto_app.run_multi_timeframe_analysis()
+        data = request.get_json()
+        base_currency = data.get('base_currency', 'USDT')
+        
+        # Get top coins for the selected base currency
+        top_coins = crypto_app.get_top_coins_by_base_currency(base_currency, limit=10)
+        if not top_coins:
+            return jsonify({
+                'success': False,
+                'error': f'Không thể lấy dữ liệu coin cho base currency {base_currency}'
+            })
+        
+        # Run analysis on selected coins
+        coin_pairs = [coin['symbol'] for coin in top_coins]
+        results = crypto_app.run_multi_timeframe_analysis(coin_pairs)
         
         # Format kết quả cho frontend
         formatted_results = []
@@ -73,12 +92,14 @@ def api_predict_buy():
 @app.route('/analyze_sell')
 def analyze_sell():
     """Trang phân tích bán"""
-    return render_template('analyze_sell.html', pairs=crypto_app.pairs)
+    base_currencies = crypto_app.get_available_base_currencies()
+    return render_template('analyze_sell.html', base_currencies=base_currencies)
 
 @app.route('/backtest')
 def backtest():
     """Trang backtest"""
-    return render_template('backtest.html', pairs=crypto_app.pairs)
+    base_currencies = crypto_app.get_available_base_currencies()
+    return render_template('backtest.html', base_currencies=base_currencies)
 
 @app.route('/api/analyze_sell', methods=['POST'])
 def api_analyze_sell():
@@ -216,20 +237,49 @@ def api_status():
     """API kiểm tra trạng thái hệ thống"""
     try:
         # Test kết nối đến crypto_app
-        test_symbol = crypto_app.pairs[0] if crypto_app.pairs else 'BTCUSDT'
-        test_data = crypto_app.get_kline_data(test_symbol, '15m', 10)
+        test_coins = crypto_app.get_top_coins_by_base_currency('USDT', 5)
         
         return jsonify({
             'success': True,
             'status': 'online',
-            'pairs_count': len(crypto_app.pairs),
-            'data_available': test_data is not None and len(test_data) > 0,
+            'base_currencies': crypto_app.get_available_base_currencies(),
+            'sample_coins_count': len(test_coins),
+            'data_available': len(test_coins) > 0,
             'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         })
     except Exception as e:
         return jsonify({
             'success': False,
             'status': 'error',
+            'error': str(e)
+        }), 500
+
+@app.route('/api/coins/<base_currency>')
+def api_get_coins(base_currency):
+    """API lấy danh sách coins theo base currency"""
+    try:
+        limit = request.args.get('limit', 15, type=int)
+        page_type = request.args.get('type', 'general')  # general, predict_buy, analyze_sell, backtest
+        
+        # Điều chỉnh limit theo loại trang
+        if page_type == 'predict_buy':
+            limit = 10  # Top 10 cho predict buy
+        elif page_type in ['analyze_sell', 'backtest']:
+            limit = 15  # Top 15 cho analyze sell và backtest
+            
+        coins = crypto_app.get_top_coins_by_base_currency(base_currency, limit)
+        
+        return jsonify({
+            'success': True,
+            'base_currency': base_currency,
+            'coins': coins,
+            'count': len(coins),
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
             'error': str(e)
         }), 500
 

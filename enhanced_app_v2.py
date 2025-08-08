@@ -291,9 +291,14 @@ class PredictionTracker:
 
 class EnhancedCryptoPredictionAppV2:
     def __init__(self):
-        self.pairs = ['XRPJPY', 'XLMJPY', 'ADAJPY', 'SUIJPY', 'LINKJPY', 'SOLJPY', 'ETHJPY']
+        # Removed fixed pairs - will be dynamic now
         self.base_url = "https://api.binance.com/api/v3/klines"
+        self.exchange_info_url = "https://api.binance.com/api/v3/exchangeInfo"
+        self.ticker_24hr_url = "https://api.binance.com/api/v3/ticker/24hr"
         self.tracker = PredictionTracker()
+        
+        # Supported base currencies
+        self.supported_base_currencies = ['JPY', 'USDT']
         
         # Market Patterns Configuration
         self.market_patterns = {
@@ -452,6 +457,59 @@ class EnhancedCryptoPredictionAppV2:
             '4h': {'timeframe': '1h', 'analysis_timeframes': ['1h', '4h'], 'hold_duration': '4 hours'}, 
             '1d': {'timeframe': '4h', 'analysis_timeframes': ['4h', '1d'], 'hold_duration': '1 day'}
         }
+
+    def get_top_coins_by_base_currency(self, base_currency='USDT', limit=15):
+        """
+        Lấy top coins theo base currency từ Binance API
+        Sắp xếp theo volume 24h để có các coin hot nhất
+        """
+        try:
+            response = requests.get(self.ticker_24hr_url, timeout=10)
+            response.raise_for_status()
+            tickers = response.json()
+            
+            # Lọc các coin có base currency được chỉ định
+            filtered_coins = []
+            for ticker in tickers:
+                symbol = ticker['symbol']
+                if symbol.endswith(base_currency):
+                    # Loại bỏ những coin có tên quá dài hoặc là leverage tokens
+                    base_coin = symbol.replace(base_currency, '')
+                    if (len(base_coin) <= 10 and 
+                        not any(x in base_coin for x in ['UP', 'DOWN', 'BEAR', 'BULL']) and
+                        base_coin not in ['BUSD', 'TUSD', 'USDC', 'DAI', 'PAX']):  # Loại bỏ stablecoins
+                        
+                        filtered_coins.append({
+                            'symbol': symbol,
+                            'baseAsset': base_coin,
+                            'volume': float(ticker['volume']),
+                            'priceChange': float(ticker['priceChangePercent']),
+                            'price': float(ticker['lastPrice'])
+                        })
+            
+            # Sắp xếp theo volume giảm dần
+            filtered_coins.sort(key=lambda x: x['volume'], reverse=True)
+            
+            # Lấy top coins
+            top_coins = filtered_coins[:limit]
+            
+            print(f"🔍 Found {len(top_coins)} top coins for {base_currency}")
+            return top_coins
+            
+        except Exception as e:
+            print(f"❌ Error getting top coins: {e}")
+            # Fallback to some popular coins
+            fallback_coins = {
+                'USDT': ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT'],
+                'JPY': ['BTCJPY', 'ETHJPY', 'XRPJPY', 'ADAJPY', 'BNBJPY']
+            }
+            
+            fallback_list = fallback_coins.get(base_currency, [])[:limit]
+            return [{'symbol': coin, 'baseAsset': coin.replace(base_currency, '')} for coin in fallback_list]
+
+    def get_available_base_currencies(self):
+        """Trả về danh sách base currencies được hỗ trợ"""
+        return self.supported_base_currencies
         
 
     def get_kline_data(self, symbol, interval='15m', limit=200):
@@ -1823,9 +1881,12 @@ class EnhancedCryptoPredictionAppV2:
         """Hiển thị lịch sử dự đoán - đã tắt"""
         pass
     
-    def run_multi_timeframe_analysis(self):
+    def run_multi_timeframe_analysis(self, coin_pairs=None):
         """Chạy phân tích cho tất cả các kiểu đầu tư (60m, 4h, 1d)"""
         all_results = {}
+        
+        # Use provided coin_pairs or fall back to self.pairs
+        pairs_to_analyze = coin_pairs if coin_pairs else self.pairs
         
         print(f"\n{Fore.YELLOW}{Style.BRIGHT}🎯 GỢI Ý COIN TỐT NHẤT CHO TỪNG KHUNG THỜI GIAN{Style.RESET_ALL}")
         print("=" * 70)
@@ -1833,7 +1894,7 @@ class EnhancedCryptoPredictionAppV2:
         for investment_type in ['60m', '4h', '1d']:
             results = []
             
-            for pair in self.pairs:
+            for pair in pairs_to_analyze:
                 try:
                     result = self.analyze_single_pair_by_investment_type(pair, investment_type)
                     if result:
