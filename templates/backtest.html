@@ -1,0 +1,628 @@
+{% extends "base.html" %}
+
+{% block title %}Backtest Trading Signals - Crypto Prediction{% endblock %}
+
+{% block extra_head %}
+<style>
+    .backtest-card {
+        transition: all 0.3s ease;
+        border: none;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    
+    .backtest-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .metric-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 15px;
+        padding: 20px;
+        margin-bottom: 20px;
+        text-align: center;
+    }
+    
+    .metric-value {
+        font-size: 2rem;
+        font-weight: bold;
+        margin-bottom: 5px;
+    }
+    
+    .metric-label {
+        font-size: 0.9rem;
+        opacity: 0.9;
+    }
+    
+    .trade-row {
+        transition: all 0.2s ease;
+    }
+    
+    .trade-row:hover {
+        background-color: #f8f9fa;
+        transform: scale(1.02);
+    }
+    
+    .profit {
+        color: #28a745;
+        font-weight: bold;
+    }
+    
+    .loss {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    
+    .neutral {
+        color: #6c757d;
+        font-weight: bold;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card backtest-card">
+                <div class="card-body text-center">
+                    <h1 class="card-title">
+                        <i class="bi bi-graph-up text-primary me-2"></i>
+                        Backtest Trading Signals
+                    </h1>
+                    <p class="card-text text-muted">
+                        Kiểm tra hiệu suất của các signal dự đoán trên dữ liệu lịch sử
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backtest Form -->
+    <div class="row mb-4">
+        <div class="col-md-6 mx-auto">
+            <div class="card backtest-card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-gear me-2"></i>Cấu hình Backtest
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="backtestForm">
+                        <div class="mb-3">
+                            <label for="symbolSelect" class="form-label">Chọn Coin</label>
+                            <select class="form-select" id="symbolSelect" required>
+                                <option value="">-- Chọn coin để backtest --</option>
+                                {% for pair in pairs %}
+                                <option value="{{ pair }}">{{ pair }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="timeframeSelect" class="form-label">Khung thời gian</label>
+                            <select class="form-select" id="timeframeSelect" required>
+                                <option value="60m">60 phút</option>
+                                <option value="4h" selected>4 giờ</option>
+                                <option value="1d">1 ngày</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="daysBack" class="form-label">Số ngày quay lại</label>
+                            <select class="form-select" id="daysBack" required>
+                                <option value="7">7 ngày</option>
+                                <option value="15">15 ngày</option>
+                                <option value="30" selected>30 ngày</option>
+                                <option value="60">60 ngày</option>
+                                <option value="90">90 ngày</option>
+                            </select>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="patternSelect" class="form-label">Pattern thị trường</label>
+                            <select class="form-select" id="patternSelect" required>
+                                <option value="default" selected>Mặc định - Cân bằng</option>
+                                <option value="bull_market">Thị trường tăng - Tối ưu cho uptrend</option>
+                                <option value="bear_market">Thị trường giảm - Bảo thủ cho downtrend</option>
+                                <option value="sideways">Thị trường ngang - Cho sideway</option>
+                                <option value="high_volatility">Biến động cao - Cho market volatile</option>
+                                <option value="low_volatility">Biến động thấp - Cho market ổn định</option>
+                                <option value="breakout">Đột phá - Bắt trend mạnh</option>
+                                <option value="scalping">Scalping - Giao dịch nhanh</option>
+                            </select>
+                            <div class="form-text">Chọn pattern phù hợp với tình hình thị trường hiện tại</div>
+                        </div>
+                        
+                        <div class="row">
+                            <div class="col-6">
+                                <button type="submit" class="btn btn-primary w-100" id="backtestBtn">
+                                    <i class="bi bi-play-circle me-2"></i>Chạy Backtest
+                                </button>
+                            </div>
+                            <div class="col-6">
+                                <button type="button" class="btn btn-warning w-100" id="compareBtn">
+                                    <i class="bi bi-bar-chart me-2"></i>So sánh Patterns
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading -->
+    <div class="row mb-4" id="loadingSection" style="display: none;">
+        <div class="col-12 text-center">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-2">Đang chạy backtest, vui lòng đợi...</p>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div id="resultsSection" style="display: none;">
+        <!-- Summary Metrics -->
+        <div class="row mb-4" id="metricsRow">
+            <!-- Metrics will be populated by JavaScript -->
+        </div>
+
+        <!-- Detailed Results -->
+        <div class="row">
+            <!-- Performance Chart -->
+            <div class="col-md-6 mb-4">
+                <div class="card backtest-card">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-bar-chart me-2"></i>Tóm tắt Kết quả
+                        </h5>
+                    </div>
+                    <div class="card-body" id="summaryContent">
+                        <!-- Summary content will be populated -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Best/Worst Trades -->
+            <div class="col-md-6 mb-4">
+                <div class="card backtest-card">
+                    <div class="card-header bg-info text-white">
+                        <h5 class="mb-0">
+                            <i class="bi bi-trophy me-2"></i>Giao dịch Tốt nhất/Tệ nhất
+                        </h5>
+                    </div>
+                    <div class="card-body" id="extremeTradesContent">
+                        <!-- Extreme trades content will be populated -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Trades Table -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card backtest-card">
+                    <div class="card-header bg-warning text-dark">
+                        <h5 class="mb-0">
+                            <i class="bi bi-list-ul me-2"></i>10 Giao dịch Gần nhất
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover" id="tradesTable">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Thời gian vào</th>
+                                        <th>Giá vào</th>
+                                        <th>Thời gian ra</th>
+                                        <th>Giá ra</th>
+                                        <th>Lý do thoát</th>
+                                        <th>PnL (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tradesTableBody">
+                                    <!-- Trades will be populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pattern Comparison Results -->
+    <div id="comparisonResults" class="mt-4" style="display: none;">
+        <!-- Comparison results will be populated by JavaScript -->
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+$(document).ready(function() {
+    $('#backtestForm').on('submit', function(e) {
+        e.preventDefault();
+        
+        const symbol = $('#symbolSelect').val();
+        const timeframe = $('#timeframeSelect').val();
+        const daysBack = $('#daysBack').val();
+        const pattern = $('#patternSelect').val();
+        
+        if (!symbol) {
+            alert('Vui lòng chọn coin để backtest');
+            return;
+        }
+        
+        runBacktest(symbol, timeframe, daysBack, pattern);
+    });
+    
+    $('#compareBtn').on('click', function() {
+        const symbol = $('#symbolSelect').val();
+        const timeframe = $('#timeframeSelect').val();
+        const daysBack = $('#daysBack').val();
+        
+        if (!symbol) {
+            alert('Vui lòng chọn coin để so sánh patterns');
+            return;
+        }
+        
+        comparePatterns(symbol, timeframe, daysBack);
+    });
+});
+
+function runBacktest(symbol, timeframe, daysBack, pattern) {
+    // Show loading
+    $('#loadingSection').show();
+    $('#resultsSection').hide();
+    $('#backtestBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split me-2"></i>Đang chạy...');
+    
+    $.ajax({
+        url: '/api/backtest',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            symbol: symbol,
+            timeframe: timeframe,
+            days_back: daysBack,
+            pattern: pattern
+        }),
+        success: function(response) {
+            if (response.success) {
+                displayBacktestResults(response.results);
+            } else {
+                alert('Lỗi: ' + response.error);
+            }
+        },
+        error: function(xhr, status, error) {
+            alert('Lỗi kết nối: ' + error);
+        },
+        complete: function() {
+            $('#loadingSection').hide();
+            $('#backtestBtn').prop('disabled', false).html('<i class="bi bi-play-circle me-2"></i>Chạy Backtest');
+        }
+    });
+}
+
+function displayBacktestResults(results) {
+    if (results.total_trades === 0) {
+        $('#resultsSection').html(`
+            <div class="alert alert-warning text-center">
+                <h4>Không có giao dịch nào</h4>
+                <p>${results.message || 'Không có signal nào được tạo trong khoảng thời gian này'}</p>
+            </div>
+        `).show();
+        return;
+    }
+    
+    // Extract currency pair info for proper price formatting
+    const symbol = results.symbol || 'Unknown';
+    const baseCurrency = symbol.substring(0, symbol.length - 3); // e.g., XLM from XLMJPY
+    const quoteCurrency = symbol.substring(symbol.length - 3); // e.g., JPY from XLMJPY
+    
+    // Display metrics
+    const metricsHtml = `
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">${results.total_trades}</div>
+                <div class="metric-label">Tổng giao dịch</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">${results.win_rate}%</div>
+                <div class="metric-label">Tỷ lệ thắng</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value ${results.total_pnl >= 0 ? 'text-success' : 'text-danger'}">${results.total_pnl > 0 ? '+' : ''}${results.total_pnl}%</div>
+                <div class="metric-label">PnL tổng</div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="metric-card">
+                <div class="metric-value">${results.performance_score}</div>
+                <div class="metric-label">Performance Score</div>
+            </div>
+        </div>
+    `;
+    $('#metricsRow').html(metricsHtml);
+    
+    // Display summary
+    const summaryHtml = `
+        <div class="row text-center">
+            <div class="col-6">
+                <h6 class="text-success">Thắng</h6>
+                <p class="h4">${results.winning_trades}</p>
+                <small>Avg: +${results.avg_win}%</small>
+            </div>
+            <div class="col-6">
+                <h6 class="text-danger">Thua</h6>
+                <p class="h4">${results.losing_trades}</p>
+                <small>Avg: ${results.avg_loss}%</small>
+            </div>
+        </div>
+        <hr>
+        <div class="row text-center">
+            <div class="col-4">
+                <small class="text-success">TP1: ${results.tp1_hits}</small>
+            </div>
+            <div class="col-4">
+                <small class="text-danger">SL: ${results.sl_hits}</small>
+            </div>
+            <div class="col-4">
+                <small class="text-warning">Timeout: ${results.timeouts}</small>
+            </div>
+        </div>
+    `;
+    $('#summaryContent').html(summaryHtml);
+    
+    // Display best/worst trades
+    const formatPrice = (price) => {
+        const priceNum = parseFloat(price);
+        // Smart formatting based on quote currency
+        if (quoteCurrency === 'JPY') {
+            return priceNum.toFixed(2); // JPY pairs usually show 2 decimals
+        } else if (quoteCurrency === 'USDT' || quoteCurrency === 'USD') {
+            if (priceNum >= 1) {
+                return priceNum.toFixed(4); // USDT pairs show 4 decimals for coins > $1
+            } else {
+                return priceNum.toFixed(6); // More decimals for smaller coins
+            }
+        } else {
+            // Default formatting
+            if (priceNum >= 1000) {
+                return priceNum.toFixed(2);
+            } else if (priceNum >= 1) {
+                return priceNum.toFixed(4);
+            } else {
+                return priceNum.toFixed(6);
+            }
+        }
+    };
+    
+    const extremeHtml = `
+        <div class="mb-3">
+            <h6 class="text-success">🏆 Giao dịch tốt nhất</h6>
+            <p class="mb-1">PnL: <span class="profit">+${results.best_trade.pnl_percent.toFixed(2)}%</span></p>
+            <small class="text-muted">
+                ${formatPrice(results.best_trade.entry_price)} → ${formatPrice(results.best_trade.exit_price)} ${quoteCurrency}<br>
+                ${new Date(results.best_trade.entry_time).toLocaleString()} → 
+                ${new Date(results.best_trade.exit_time).toLocaleString()}
+            </small>
+        </div>
+        <hr>
+        <div>
+            <h6 class="text-danger">💥 Giao dịch tệ nhất</h6>
+            <p class="mb-1">PnL: <span class="loss">${results.worst_trade.pnl_percent.toFixed(2)}%</span></p>
+            <small class="text-muted">
+                ${formatPrice(results.worst_trade.entry_price)} → ${formatPrice(results.worst_trade.exit_price)} ${quoteCurrency}<br>
+                ${new Date(results.worst_trade.entry_time).toLocaleString()} → 
+                ${new Date(results.worst_trade.exit_time).toLocaleString()}
+            </small>
+        </div>
+    `;
+    $('#extremeTradesContent').html(extremeHtml);
+    
+    // Display trades table
+    let tradesHtml = '';
+    results.trades.forEach(trade => {
+        const pnlClass = trade.pnl_percent > 0 ? 'profit' : (trade.pnl_percent < 0 ? 'loss' : 'neutral');
+        const exitReasonClass = trade.exit_reason === 'TP1' ? 'text-success' : 
+                               (trade.exit_reason === 'STOP_LOSS' ? 'text-danger' : 'text-warning');
+        
+        // Use the same formatPrice function defined above
+        const formatPriceForTable = (price) => {
+            const priceNum = parseFloat(price);
+            // Smart formatting based on quote currency
+            if (quoteCurrency === 'JPY') {
+                return priceNum.toFixed(2); // JPY pairs usually show 2 decimals
+            } else if (quoteCurrency === 'USDT' || quoteCurrency === 'USD') {
+                if (priceNum >= 1) {
+                    return priceNum.toFixed(4); // USDT pairs show 4 decimals for coins > $1
+                } else {
+                    return priceNum.toFixed(6); // More decimals for smaller coins
+                }
+            } else {
+                // Default formatting
+                if (priceNum >= 1000) {
+                    return priceNum.toFixed(2);
+                } else if (priceNum >= 1) {
+                    return priceNum.toFixed(4);
+                } else {
+                    return priceNum.toFixed(6);
+                }
+            }
+        };
+        
+        tradesHtml += `
+            <tr class="trade-row">
+                <td>${new Date(trade.entry_time).toLocaleString()}</td>
+                <td>${formatPriceForTable(trade.entry_price)} <small class="text-muted">${quoteCurrency}</small></td>
+                <td>${new Date(trade.exit_time).toLocaleString()}</td>
+                <td>${formatPriceForTable(trade.exit_price)} <small class="text-muted">${quoteCurrency}</small></td>
+                <td><span class="${exitReasonClass}">${trade.exit_reason}</span></td>
+                <td><span class="${pnlClass}">${trade.pnl_percent > 0 ? '+' : ''}${trade.pnl_percent.toFixed(2)}%</span></td>
+            </tr>
+        `;
+    });
+    $('#tradesTableBody').html(tradesHtml);
+    
+    $('#resultsSection').show();
+}
+
+function comparePatterns(symbol, timeframe, daysBack) {
+    // Show loading for comparison
+    $('#comparisonResults').html('<div class="alert alert-info text-center"><i class="bi bi-hourglass-split me-2"></i>Đang so sánh các patterns...</div>').show();
+    $('#compareBtn').prop('disabled', true).html('<i class="bi bi-hourglass-split me-2"></i>Đang so sánh...');
+    
+    $.ajax({
+        url: '/api/pattern_comparison',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            symbol: symbol,
+            timeframe: timeframe,
+            days_back: daysBack
+        }),
+        success: function(response) {
+            if (response.success) {
+                displayPatternComparison(response.results);
+            } else {
+                $('#comparisonResults').html(`<div class="alert alert-danger">Lỗi: ${response.error}</div>`);
+            }
+        },
+        error: function(xhr, status, error) {
+            $('#comparisonResults').html(`<div class="alert alert-danger">Lỗi kết nối: ${error}</div>`);
+        },
+        complete: function() {
+            $('#compareBtn').prop('disabled', false).html('<i class="bi bi-graph-up me-2"></i>So Sánh Patterns');
+        }
+    });
+}
+
+function displayPatternComparison(results) {
+    // Check if results is valid
+    if (!results || typeof results !== 'object') {
+        $('#comparisonResults').html(`
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                Không có dữ liệu để so sánh patterns
+            </div>
+        `);
+        return;
+    }
+
+    let comparisonHtml = `
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>So Sánh Performance Các Patterns</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+    `;
+    
+    // Sort patterns by performance score
+    const sortedPatterns = Object.entries(results).sort((a, b) => b[1].performance_score - a[1].performance_score);
+    
+    sortedPatterns.forEach(([ patternName, data ], index) => {
+        const isRecommended = index === 0;
+        const cardClass = isRecommended ? 'border-success' : '';
+        const badgeClass = isRecommended ? 'bg-success' : 'bg-secondary';
+        
+        // Safe checking for undefined values
+        const performanceScore = data.performance_score || 0;
+        const winRate = data.win_rate || 0;
+        const totalTrades = data.total_trades || 0;
+        const profitFactor = data.profit_factor || 0;
+        const avgPnlPercent = data.avg_pnl_percent || 0;
+        
+        comparisonHtml += `
+            <div class="col-md-4 mb-3">
+                <div class="card ${cardClass}">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h6 class="mb-0">${patternName.replace(/_/g, ' ').toUpperCase()}</h6>
+                        ${isRecommended ? '<span class="badge bg-success">KHUYẾN NGHỊ</span>' : ''}
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <small class="text-muted">Performance Score</small>
+                                <div class="h5 ${performanceScore >= 70 ? 'text-success' : performanceScore >= 50 ? 'text-warning' : 'text-danger'}">${performanceScore.toFixed(1)}</div>
+                            </div>
+                            <div class="col-6">
+                                <small class="text-muted">Win Rate</small>
+                                <div class="h5 ${winRate >= 60 ? 'text-success' : winRate >= 40 ? 'text-warning' : 'text-danger'}">${winRate.toFixed(1)}%</div>
+                            </div>
+                        </div>
+                        <hr>
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <small>Trades</small>
+                                <div>${totalTrades}</div>
+                            </div>
+                            <div class="col-4">
+                                <small>Profit Factor</small>
+                                <div class="${profitFactor >= 1.5 ? 'text-success' : profitFactor >= 1.0 ? 'text-warning' : 'text-danger'}">${profitFactor.toFixed(2)}</div>
+                            </div>
+                            <div class="col-4">
+                                <small>Avg PnL</small>
+                                <div class="${avgPnlPercent >= 0 ? 'text-success' : 'text-danger'}">${avgPnlPercent > 0 ? '+' : ''}${avgPnlPercent.toFixed(2)}%</div>
+                            </div>
+                        </div>
+                        ${isRecommended ? `
+                        <div class="mt-3">
+                            <button class="btn btn-success btn-sm w-100" onclick="applyPattern('${patternName}')">
+                                <i class="bi bi-check-circle me-1"></i>Áp dụng Pattern này
+                            </button>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    comparisonHtml += `
+                </div>
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Lưu ý:</strong> Pattern được khuyến nghị dựa trên Performance Score cao nhất. 
+                    Performance Score được tính dựa trên Win Rate, Profit Factor và Average PnL.
+                </div>
+            </div>
+        </div>
+    `;
+    
+    $('#comparisonResults').html(comparisonHtml);
+}
+
+function applyPattern(patternName) {
+    $.ajax({
+        url: '/api/set_pattern',
+        method: 'POST',
+        contentType: 'application/json',
+        data: JSON.stringify({
+            pattern: patternName
+        }),
+        success: function(response) {
+            if (response.success) {
+                alert(`✅ Đã áp dụng pattern "${patternName.replace(/_/g, ' ')}" thành công!\n\nPattern này sẽ được sử dụng cho các dự đoán tiếp theo.`);
+                // Update pattern selector if exists
+                $('#patternSelect').val(patternName);
+            } else {
+                alert('❌ Lỗi khi áp dụng pattern: ' + response.error);
+            }
+        },
+        error: function(xhr, status, error) {
+            alert('❌ Lỗi kết nối: ' + error);
+        }
+    });
+}
+</script>
+{% endblock %}

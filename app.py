@@ -75,6 +75,11 @@ def analyze_sell():
     """Trang phân tích bán"""
     return render_template('analyze_sell.html', pairs=crypto_app.pairs)
 
+@app.route('/backtest')
+def backtest():
+    """Trang backtest"""
+    return render_template('backtest.html', pairs=crypto_app.pairs)
+
 @app.route('/api/analyze_sell', methods=['POST'])
 def api_analyze_sell():
     """API phân tích xu hướng để quyết định hold hay bán"""
@@ -225,6 +230,132 @@ def api_status():
         return jsonify({
             'success': False,
             'status': 'error',
+            'error': str(e)
+        }), 500
+
+@app.route('/api/backtest', methods=['POST'])
+def api_backtest():
+    """API chạy backtest với pattern"""
+    try:
+        print("🔍 Backtest API called")
+        data = request.get_json()
+        print(f"🔍 Received data: {data}")
+        
+        symbol = data.get('symbol', 'BTCUSDT')
+        timeframe = data.get('timeframe', '4h')
+        days_back = int(data.get('days_back', 30))
+        pattern_name = data.get('pattern', 'default')  # Changed from pattern_name to pattern
+        
+        print(f"🔍 Parameters: symbol={symbol}, timeframe={timeframe}, days_back={days_back}, pattern={pattern_name}")
+        
+        # Chạy backtest với pattern
+        backtest_results = crypto_app.run_backtest(symbol, timeframe, days_back, pattern_name)
+        
+        print(f"🔍 Backtest results: {backtest_results}")
+        
+        if not backtest_results:
+            print("❌ No backtest results")
+            return jsonify({
+                'success': False,
+                'error': 'Không thể thực hiện backtest'
+            }), 400
+        
+        # Add symbol to results for frontend formatting
+        backtest_results['symbol'] = symbol
+        
+        print("✅ Returning successful response")
+        return jsonify({
+            'success': True,
+            'results': backtest_results,
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        print(f"❌ Backtest API error: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/patterns')
+def api_patterns():
+    """API lấy danh sách patterns"""
+    try:
+        patterns = crypto_app.market_patterns
+        return jsonify({
+            'success': True,
+            'patterns': patterns,
+            'active_pattern': crypto_app.active_pattern,
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/set_pattern', methods=['POST'])
+def api_set_pattern():
+    """API thiết lập pattern hiện tại"""
+    try:
+        data = request.get_json()
+        pattern_name = data.get('pattern')  # Changed from pattern_name to pattern
+        
+        if not pattern_name:
+            return jsonify({
+                'success': False,
+                'error': 'Vui lòng chọn pattern'
+            }), 400
+        
+        if crypto_app.set_market_pattern(pattern_name):
+            return jsonify({
+                'success': True,
+                'message': f'Đã chuyển sang pattern: {pattern_name}',
+                'active_pattern': crypto_app.active_pattern,
+                'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Pattern không tồn tại'
+            }), 400
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/pattern_comparison', methods=['POST'])
+def api_pattern_comparison():
+    """API so sánh nhiều patterns"""
+    try:
+        data = request.get_json()
+        symbol = data.get('symbol', 'BTCUSDT')
+        timeframe = data.get('timeframe', '4h')
+        days_back = int(data.get('days_back', 30))
+        
+        comparison_results = {}
+        patterns_to_test = ['default', 'bull_market', 'bear_market', 'sideways', 'high_volatility', 'low_volatility', 'breakout', 'scalping']
+        
+        for pattern in patterns_to_test:
+            result = crypto_app.run_backtest(symbol, timeframe, days_back, pattern)
+            if result:
+                result['symbol'] = symbol  # Add symbol to each result
+                comparison_results[pattern] = result
+            time.sleep(0.5)  # Small delay between tests
+        
+        return jsonify({
+            'success': True,
+            'results': comparison_results,
+            'timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
             'error': str(e)
         }), 500
 

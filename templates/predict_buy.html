@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Dự đoán MUA - Crypto Prediction{% endblock %}
+{% block title %}TOMO Crypto{% endblock %}
 
 {% block content %}
 <div class="container">
@@ -15,10 +15,16 @@
                     </h2>
                     <p class="text-muted mb-0">Tìm kiếm cơ hội đầu tư tốt nhất trên nhiều khung thời gian</p>
                 </div>
-                <button id="analyzeBtn" class="btn btn-success btn-lg">
-                    <i class="bi bi-play-fill me-2"></i>
-                    Chạy phân tích
-                </button>
+                <div>
+                    <button id="patternBtn" class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#patternModal">
+                        <i class="bi bi-gear me-2"></i>
+                        Cấu hình Pattern
+                    </button>
+                    <button id="analyzeBtn" class="btn btn-success btn-lg">
+                        <i class="bi bi-play-fill me-2"></i>
+                        Chạy phân tích
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -92,11 +98,6 @@
                                 <p><strong>Khung thời gian:</strong> 60m, 4h, 1d</p>
                                 <p><strong>Chỉ báo sử dụng:</strong> RSI, MACD, Ichimoku, Fibonacci, Volume</p>
                             </div>
-                        </div>
-                        
-                        <div class="alert alert-warning mt-3" role="alert">
-                            <i class="bi bi-exclamation-triangle me-2"></i>
-                            <strong>Lưu ý:</strong> Đây chỉ là công cụ hỗ trợ phân tích. Vui lòng tự nghiên cứu thêm trước khi đầu tư. Crypto là khoản đầu tư có rủi ro cao.
                         </div>
                     </div>
                 </div>
@@ -312,6 +313,102 @@ $(document).ready(function() {
     function resetButton() {
         $('#analyzeBtn').prop('disabled', false).html('<i class="bi bi-play-fill me-2"></i>Chạy phân tích');
     }
+
+    // Load patterns on page load
+    function loadPatterns() {
+        $.ajax({
+            url: '/api/patterns',
+            method: 'GET',
+            success: function(response) {
+                if (response.success) {
+                    const patterns = response.patterns;
+                    const activePattern = response.active_pattern;
+                    let optionsHtml = '';
+                    
+                    for (const [key, pattern] of Object.entries(patterns)) {
+                        const selected = key === activePattern ? 'selected' : '';
+                        optionsHtml += `<option value="${key}" ${selected}>${pattern.name} - ${pattern.description}</option>`;
+                    }
+                    
+                    $('#patternSelect').html(optionsHtml);
+                    $('#currentPattern').text(patterns[activePattern]?.name || 'Default');
+                }
+            },
+            error: function() {
+                console.error('Không thể tải danh sách patterns');
+            }
+        });
+    }
+
+    // Apply selected pattern
+    function applyPattern() {
+        const selectedPattern = $('#patternSelect').val();
+        
+        $.ajax({
+            url: '/api/set_pattern',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                pattern: selectedPattern
+            }),
+            success: function(response) {
+                if (response.success) {
+                    $('#patternModal').modal('hide');
+                    alert('✅ Đã áp dụng pattern thành công!');
+                    loadPatterns(); // Reload to update current pattern
+                } else {
+                    alert('❌ Lỗi: ' + response.error);
+                }
+            },
+            error: function() {
+                alert('❌ Lỗi kết nối khi áp dụng pattern');
+            }
+        });
+    }
+
+    // Load patterns when page loads
+    loadPatterns();
+
+    // Apply pattern button
+    $('#applyPatternBtn').on('click', applyPattern);
 });
 </script>
+
+<!-- Pattern Configuration Modal -->
+<div class="modal fade" id="patternModal" tabindex="-1" aria-labelledby="patternModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="patternModalLabel">
+                    <i class="bi bi-gear me-2"></i>Cấu hình Pattern Thị trường
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    <strong>Pattern hiện tại:</strong> <span id="currentPattern">Default</span>
+                </div>
+                
+                <div class="mb-3">
+                    <label for="patternSelect" class="form-label">Chọn Pattern mới:</label>
+                    <select class="form-select" id="patternSelect">
+                        <!-- Options will be loaded dynamically -->
+                    </select>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle me-2"></i>
+                    <strong>Lưu ý:</strong> Pattern này sẽ được áp dụng cho tất cả các dự đoán tiếp theo.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                <button type="button" class="btn btn-primary" id="applyPatternBtn">
+                    <i class="bi bi-check-circle me-2"></i>Áp dụng Pattern
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}

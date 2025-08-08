@@ -294,6 +294,158 @@ class EnhancedCryptoPredictionAppV2:
         self.pairs = ['XRPJPY', 'XLMJPY', 'ADAJPY', 'SUIJPY', 'LINKJPY', 'SOLJPY', 'ETHJPY']
         self.base_url = "https://api.binance.com/api/v3/klines"
         self.tracker = PredictionTracker()
+        
+        # Market Patterns Configuration
+        self.market_patterns = {
+            "default": {
+                "name": "Mặc định",
+                "description": "Thông số cân bằng cho mọi tình huống",
+                "tp1_multiplier": 1.0,
+                "tp2_multiplier": 2.0,
+                "sl_multiplier": 1.0,
+                "atr_period": 14,
+                "rsi_period": 14,
+                "rsi_oversold": 30,
+                "rsi_overbought": 70,
+                "ema_fast": 12,
+                "ema_slow": 26,
+                "bb_period": 20,
+                "bb_std": 2.0,
+                "volume_threshold": 1.2,
+                "volume_multiplier": 1.2,
+                "success_boost": 1.0
+            },
+            "bull_market": {
+                "name": "Thị trường tăng",
+                "description": "Tối ưu cho xu hướng tăng mạnh",
+                "tp1_multiplier": 1.5,
+                "tp2_multiplier": 3.0,
+                "sl_multiplier": 1.2,
+                "atr_period": 21,
+                "rsi_period": 21,
+                "rsi_oversold": 40,
+                "rsi_overbought": 80,
+                "ema_fast": 8,
+                "ema_slow": 21,
+                "bb_period": 20,
+                "bb_std": 2.2,
+                "volume_threshold": 1.5,
+                "volume_multiplier": 1.5,
+                "success_boost": 1.15
+            },
+            "bear_market": {
+                "name": "Thị trường giảm", 
+                "description": "Bảo thủ cho xu hướng giảm",
+                "tp1_multiplier": 0.8,
+                "tp2_multiplier": 1.5,
+                "sl_multiplier": 0.7,
+                "atr_period": 10,
+                "rsi_period": 10,
+                "rsi_oversold": 20,
+                "rsi_overbought": 60,
+                "ema_fast": 5,
+                "ema_slow": 13,
+                "bb_period": 14,
+                "bb_std": 1.8,
+                "volume_threshold": 1.0,
+                "volume_multiplier": 1.0,
+                "success_boost": 0.9
+            },
+            "sideways": {
+                "name": "Thị trường ngang",
+                "description": "Chiến lược cho thị trường sideway",
+                "tp1_multiplier": 0.6,
+                "tp2_multiplier": 1.2,
+                "sl_multiplier": 0.5,
+                "atr_period": 7,
+                "rsi_period": 7,
+                "rsi_oversold": 35,
+                "rsi_overbought": 65,
+                "ema_fast": 5,
+                "ema_slow": 10,
+                "bb_period": 10,
+                "bb_std": 1.5,
+                "volume_threshold": 0.8,
+                "volume_multiplier": 0.8,
+                "success_boost": 0.85
+            },
+            "high_volatility": {
+                "name": "Biến động cao",
+                "description": "Thích ứng với biến động lớn",
+                "tp1_multiplier": 2.0,
+                "tp2_multiplier": 4.0,
+                "sl_multiplier": 1.5,
+                "atr_period": 28,
+                "rsi_period": 28,
+                "rsi_oversold": 25,
+                "rsi_overbought": 75,
+                "ema_fast": 21,
+                "ema_slow": 50,
+                "bb_period": 25,
+                "bb_std": 2.5,
+                "volume_threshold": 2.0,
+                "volume_multiplier": 2.0,
+                "success_boost": 1.1
+            },
+            "low_volatility": {
+                "name": "Biến động thấp",
+                "description": "Tối ưu cho thị trường ít biến động",
+                "tp1_multiplier": 0.4,
+                "tp2_multiplier": 0.8,
+                "sl_multiplier": 0.3,
+                "atr_period": 5,
+                "rsi_period": 5,
+                "rsi_oversold": 40,
+                "rsi_overbought": 60,
+                "ema_fast": 3,
+                "ema_slow": 8,
+                "bb_period": 8,
+                "bb_std": 1.2,
+                "volume_threshold": 0.6,
+                "volume_multiplier": 0.6,
+                "success_boost": 0.8
+            },
+            "breakout": {
+                "name": "Đột phá",
+                "description": "Bắt xu hướng đột phá mạnh",
+                "tp1_multiplier": 2.5,
+                "tp2_multiplier": 5.0,
+                "sl_multiplier": 1.8,
+                "atr_period": 20,
+                "rsi_period": 20,
+                "rsi_oversold": 30,
+                "rsi_overbought": 70,
+                "ema_fast": 10,
+                "ema_slow": 30,
+                "bb_period": 20,
+                "bb_std": 3.0,
+                "volume_threshold": 3.0,
+                "volume_multiplier": 3.0,
+                "success_boost": 1.2
+            },
+            "scalping": {
+                "name": "Scalping",
+                "description": "Giao dịch ngắn hạn tần suất cao",
+                "tp1_multiplier": 0.3,
+                "tp2_multiplier": 0.6,
+                "sl_multiplier": 0.2,
+                "atr_period": 3,
+                "rsi_period": 3,
+                "rsi_oversold": 45,
+                "rsi_overbought": 55,
+                "ema_fast": 2,
+                "ema_slow": 5,
+                "bb_period": 5,
+                "bb_std": 1.0,
+                "volume_threshold": 0.5,
+                "volume_multiplier": 0.5,
+                "success_boost": 0.75
+            }
+        }
+        
+        # Current active pattern
+        self.active_pattern = "default"
+        
         # Các kiểu đầu tư
         self.investment_types = {
             '60m': {'timeframe': '15m', 'analysis_timeframes': ['15m', '1h'], 'hold_duration': '60 minutes'},
@@ -330,9 +482,9 @@ class EnhancedCryptoPredictionAppV2:
                 df[col] = pd.to_numeric(df[col])
             
             df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
-            df.set_index('timestamp', inplace=True)
+            # Keep timestamp as a column, not index
             
-            return df[['open', 'high', 'low', 'close', 'volume']]
+            return df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
             
         except requests.exceptions.RequestException as e:
             print(f"{Fore.RED}❌ Network error for {symbol}: {e}{Style.RESET_ALL}")
@@ -1744,6 +1896,310 @@ class EnhancedCryptoPredictionAppV2:
         print(f"\n{Fore.BLUE}⏰ Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
         
         return results
+
+    def set_market_pattern(self, pattern_name):
+        """Thiết lập pattern thị trường hiện tại"""
+        if pattern_name in self.market_patterns:
+            self.active_pattern = pattern_name
+            print(f"{Fore.YELLOW}🎯 Chuyển sang pattern: {self.market_patterns[pattern_name]['name']}{Style.RESET_ALL}")
+            return True
+        return False
+    
+    def get_current_pattern(self):
+        """Lấy thông tin pattern hiện tại"""
+        return self.market_patterns[self.active_pattern]
+    
+    def get_pattern_adjusted_params(self, base_atr, base_price):
+        """Tính toán thông số đã điều chỉnh theo pattern"""
+        pattern = self.get_current_pattern()
+        
+        return {
+            'tp1': base_price + (base_atr * pattern['tp1_multiplier']),
+            'tp2': base_price + (base_atr * pattern['tp2_multiplier']),
+            'sl': base_price - (base_atr * pattern['sl_multiplier']),
+            'volume_threshold': pattern['volume_threshold'],
+            'success_boost': pattern['success_boost']
+        }
+
+    def run_backtest(self, symbol, timeframe='4h', days_back=30, pattern_name=None):
+        """
+        Chạy backtest thực sự với dữ liệu lịch sử và pattern cụ thể
+        """
+        try:
+            # Thiết lập pattern nếu được chỉ định
+            original_pattern = self.active_pattern
+            if pattern_name and pattern_name in self.market_patterns:
+                self.active_pattern = pattern_name
+            
+            pattern = self.get_current_pattern()
+            
+            print(f"\n{Fore.YELLOW}{Style.BRIGHT}🎯 REAL BACKTEST TRADING SIGNALS{Style.RESET_ALL}")
+            print(f"Symbol: {symbol} | Timeframe: {timeframe} | Days: {days_back}")
+            print(f"Pattern: {pattern['name']} - {pattern['description']}")
+            print("=" * 70)
+            
+            # Lấy dữ liệu lịch sử thực
+            limit = self._calculate_limit_for_timeframe(timeframe, days_back)
+            df = self.get_kline_data(symbol, timeframe, limit)
+            
+            if df is None or len(df) < 50:
+                print(f"{Fore.RED}❌ Không đủ dữ liệu cho backtest{Style.RESET_ALL}")
+                return None
+            
+            # Tính indicators dựa trên pattern
+            df['ema_fast'] = calculate_ema(df['close'], pattern['ema_fast'])
+            df['ema_slow'] = calculate_ema(df['close'], pattern['ema_slow'])
+            df['rsi'] = calculate_rsi(df['close'], 14)
+            df['atr'] = self._calculate_atr(df, 14)
+            
+            # Tạo signals dựa trên pattern
+            signals = []
+            for i in range(50, len(df) - 1):  # Bỏ qua 50 nến đầu để có đủ data cho indicators
+                current = df.iloc[i]
+                prev = df.iloc[i-1]
+                
+                # Logic tạo signal dựa trên pattern
+                signal_created = False
+                
+                # Điều kiện cơ bản cho BUY signal
+                ema_signal = current['ema_fast'] > current['ema_slow']
+                rsi_signal = pattern['rsi_oversold'] < current['rsi'] < pattern['rsi_overbought']
+                volume_signal = current['volume'] > df['volume'].rolling(20).mean().iloc[i] * pattern['volume_multiplier']
+                
+                # Tạo signal dựa trên pattern cụ thể
+                if pattern_name == "bull_market":
+                    signal_created = ema_signal and current['rsi'] > 40
+                elif pattern_name == "bear_market":
+                    signal_created = ema_signal and current['rsi'] > 50 and volume_signal
+                elif pattern_name == "sideways":
+                    signal_created = abs(current['ema_fast'] - current['ema_slow']) < current['close'] * 0.01 and rsi_signal
+                elif pattern_name == "high_volatility":
+                    signal_created = ema_signal and current['atr'] > df['atr'].rolling(20).mean().iloc[i] * 1.5
+                elif pattern_name == "low_volatility":
+                    signal_created = ema_signal and rsi_signal and current['atr'] < df['atr'].rolling(20).mean().iloc[i] * 0.8
+                elif pattern_name == "breakout":
+                    # Breakout từ consolidation
+                    high_20 = df['high'].rolling(20).max().iloc[i-1]
+                    signal_created = current['close'] > high_20 * 1.02  # Break above 20-period high
+                elif pattern_name == "scalping":
+                    signal_created = ema_signal and 45 < current['rsi'] < 55 and volume_signal
+                else:  # default
+                    signal_created = ema_signal and rsi_signal
+                
+                if signal_created:
+                    entry_price = current['close']
+                    tp1 = entry_price * (1 + (2 * pattern['tp1_multiplier']) / 100)
+                    tp2 = entry_price * (1 + (4 * pattern['tp2_multiplier']) / 100)
+                    stop_loss = entry_price * (1 - (2 * pattern['sl_multiplier']) / 100)
+                    
+                    signals.append({
+                        'entry_index': i,
+                        'entry_time': pd.to_datetime(current['timestamp'], unit='ms'),
+                        'entry_price': entry_price,
+                        'tp1': tp1,
+                        'tp2': tp2,
+                        'stop_loss': stop_loss
+                    })
+            
+            if not signals:
+                return {
+                    'symbol': symbol,
+                    'total_trades': 0,
+                    'message': f'Không có signal nào được tạo với pattern {pattern["name"]} trong {days_back} ngày'
+                }
+            
+            # Simulate trades dựa trên signals thực
+            trades = []
+            for signal in signals:
+                trade = self._simulate_trade(signal, df, pattern)
+                if trade:
+                    trades.append(trade)
+            
+            if not trades:
+                return {
+                    'symbol': symbol,
+                    'total_trades': 0,
+                    'message': 'Không có trade nào được thực hiện'
+                }
+            
+            # Tính toán kết quả thực
+            winning_trades = sum(1 for t in trades if t['pnl_percent'] > 0)
+            losing_trades = len(trades) - winning_trades
+            win_rate = (winning_trades / len(trades)) * 100 if trades else 0
+            
+            total_pnl = sum(t['pnl_percent'] for t in trades)
+            avg_win = sum(t['pnl_percent'] for t in trades if t['pnl_percent'] > 0) / max(winning_trades, 1)
+            avg_loss = sum(t['pnl_percent'] for t in trades if t['pnl_percent'] < 0) / max(losing_trades, 1) if losing_trades > 0 else 0
+            
+            # Tính Profit Factor
+            total_profit = sum(t['pnl_percent'] for t in trades if t['pnl_percent'] > 0)
+            total_loss = abs(sum(t['pnl_percent'] for t in trades if t['pnl_percent'] < 0))
+            profit_factor = total_profit / max(total_loss, 0.01)  # Avoid division by zero
+            
+            # Average PnL percent
+            avg_pnl_percent = total_pnl / len(trades) if trades else 0
+            
+            # Phân loại theo exit reason
+            tp1_hits = sum(1 for t in trades if t['exit_reason'] == 'TP1')
+            sl_hits = sum(1 for t in trades if t['exit_reason'] == 'STOP_LOSS')
+            timeouts = sum(1 for t in trades if t['exit_reason'] == 'TIMEOUT')
+            
+            # Tính điểm performance thực
+            performance_score = (win_rate * 0.4) + (profit_factor * 20) + (avg_pnl_percent * 2)
+            performance_score = max(0, min(100, performance_score))  # Clamp between 0-100
+            
+            results = {
+                'symbol': symbol,
+                'timeframe': timeframe,
+                'days_back': days_back,
+                'pattern_name': pattern_name or 'default',
+                'pattern_info': pattern,
+                'total_trades': len(trades),
+                'winning_trades': winning_trades,
+                'losing_trades': losing_trades,
+                'win_rate': round(win_rate, 2),
+                'total_pnl': round(total_pnl, 2),
+                'avg_win': round(avg_win, 2),
+                'avg_loss': round(avg_loss, 2),
+                'profit_factor': round(profit_factor, 2),
+                'avg_pnl_percent': round(avg_pnl_percent, 2),
+                'tp1_hits': tp1_hits,
+                'sl_hits': sl_hits,
+                'timeouts': timeouts,
+                'performance_score': round(performance_score, 2),
+                'trades': trades[-10:],  # 10 giao dịch gần nhất
+                'best_trade': max(trades, key=lambda x: x['pnl_percent']) if trades else None,
+                'worst_trade': min(trades, key=lambda x: x['pnl_percent']) if trades else None
+            }
+            
+            # Display results
+            print(f"\n{Fore.CYAN}📊 KẾT QUẢ BACKTEST THỰC{Style.RESET_ALL}")
+            print(f"Pattern: {pattern['name']}")
+            print(f"Signals generated: {len(signals)}")
+            print(f"Trades executed: {len(trades)}")
+            print(f"Thắng: {winning_trades} | Thua: {losing_trades}")
+            print(f"Tỷ lệ thắng: {win_rate:.1f}%")
+            print(f"PnL tổng: {total_pnl:+.2f}%")
+            print(f"Profit Factor: {profit_factor:.2f}")
+            print(f"Avg PnL: {avg_pnl_percent:+.2f}%")
+            print(f"TP1: {tp1_hits} | SL: {sl_hits} | Timeout: {timeouts}")
+            print(f"Performance Score: {performance_score:.2f}/100")
+            
+            # Khôi phục pattern gốc
+            self.active_pattern = original_pattern
+            
+            return results
+            
+        except Exception as e:
+            # Khôi phục pattern gốc khi có lỗi
+            if 'original_pattern' in locals():
+                self.active_pattern = original_pattern
+            print(f"{Fore.RED}❌ Lỗi backtest: {e}{Style.RESET_ALL}")
+            return None
+
+    def _calculate_limit_for_timeframe(self, timeframe, days_back):
+        """Tính limit cần thiết cho mỗi timeframe"""
+        timeframe_minutes = {
+            '60m': 60,
+            '4h': 240,
+            '1d': 1440
+        }
+        
+        minutes_in_day = 1440
+        total_minutes = days_back * minutes_in_day
+        candles_needed = total_minutes // timeframe_minutes.get(timeframe, 240)
+        
+        # Thêm buffer để đảm bảo đủ data cho indicators
+        return min(max(candles_needed + 100, 200), 1000)
+
+    def _calculate_atr(self, df, period=14):
+        """Tính Average True Range"""
+        high_low = df['high'] - df['low']
+        high_close = np.abs(df['high'] - df['close'].shift())
+        low_close = np.abs(df['low'] - df['close'].shift())
+        
+        true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+        return true_range.rolling(window=period).mean()
+
+    def _simulate_trade(self, signal, df, pattern):
+        """Simulate một trade dựa trên signal và pattern"""
+        try:
+            entry_index = signal['entry_index']
+            entry_price = signal['entry_price']
+            tp1 = signal['tp1']
+            stop_loss = signal['stop_loss']
+            
+            # Tìm exit point trong data tiếp theo
+            max_hold_periods = {
+                '60m': 48,  # 48 hours max hold
+                '4h': 72,   # 12 days max hold  
+                '1d': 30    # 30 days max hold
+            }
+            
+            max_periods = max_hold_periods.get('4h', 72)  # Default 4h
+            exit_index = min(entry_index + max_periods, len(df) - 1)
+            
+            # Scan từng nến để tìm TP1 hoặc SL
+            for i in range(entry_index + 1, exit_index + 1):
+                if i >= len(df):
+                    break
+                    
+                current_candle = df.iloc[i]
+                
+                # Check TP1 hit
+                if current_candle['high'] >= tp1:
+                    exit_price = tp1
+                    exit_reason = 'TP1'
+                    pnl_percent = ((exit_price / entry_price) - 1) * 100
+                    
+                    return {
+                        'entry_time': signal['entry_time'].isoformat(),
+                        'entry_price': entry_price,
+                        'exit_time': pd.to_datetime(current_candle['timestamp'], unit='ms').isoformat(),
+                        'exit_price': exit_price,
+                        'exit_reason': exit_reason,
+                        'pnl_percent': pnl_percent,
+                        'tp1': tp1,
+                        'stop_loss': stop_loss
+                    }
+                
+                # Check SL hit
+                if current_candle['low'] <= stop_loss:
+                    exit_price = stop_loss
+                    exit_reason = 'STOP_LOSS'
+                    pnl_percent = ((exit_price / entry_price) - 1) * 100
+                    
+                    return {
+                        'entry_time': signal['entry_time'].isoformat(),
+                        'entry_price': entry_price,
+                        'exit_time': pd.to_datetime(current_candle['timestamp'], unit='ms').isoformat(),
+                        'exit_price': exit_price,
+                        'exit_reason': exit_reason,
+                        'pnl_percent': pnl_percent,
+                        'tp1': tp1,
+                        'stop_loss': stop_loss
+                    }
+            
+            # Timeout - exit at market price
+            final_candle = df.iloc[exit_index]
+            exit_price = final_candle['close']
+            exit_reason = 'TIMEOUT'
+            pnl_percent = ((exit_price / entry_price) - 1) * 100
+            
+            return {
+                'entry_time': signal['entry_time'].isoformat(),
+                'entry_price': entry_price,
+                'exit_time': pd.to_datetime(final_candle['timestamp'], unit='ms').isoformat(),
+                'exit_price': exit_price,
+                'exit_reason': exit_reason,
+                'pnl_percent': pnl_percent,
+                'tp1': tp1,
+                'stop_loss': stop_loss
+            }
+            
+        except Exception as e:
+            print(f"Error simulating trade: {e}")
+            return None
 
 def main():
     import sys
