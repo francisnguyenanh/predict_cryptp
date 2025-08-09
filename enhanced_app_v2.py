@@ -286,7 +286,7 @@ class PredictionTracker:
                 return 0.0
                 
         except Exception as e:
-            print(f"❌ Error calculating accuracy: {e}")
+            #print(f"❌ Error calculating accuracy: {e}")
             return 0.0
 
 class EnhancedCryptoPredictionAppV2:
@@ -493,11 +493,11 @@ class EnhancedCryptoPredictionAppV2:
             # Lấy top coins
             top_coins = filtered_coins[:limit]
             
-            print(f"🔍 Found {len(top_coins)} top coins for {base_currency}")
+            #print(f"🔍 Found {len(top_coins)} top coins for {base_currency}")
             return top_coins
             
         except Exception as e:
-            print(f"❌ Error getting top coins: {e}")
+            #print(f"❌ Error getting top coins: {e}")
             # Fallback to some popular coins
             fallback_coins = {
                 'USDT': ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT'],
@@ -545,10 +545,10 @@ class EnhancedCryptoPredictionAppV2:
             return df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
             
         except requests.exceptions.RequestException as e:
-            print(f"{Fore.RED}❌ Network error for {symbol}: {e}{Style.RESET_ALL}")
+            #print(f"{Fore.RED}❌ Network error for {symbol}: {e}{Style.RESET_ALL}")
             return None
         except Exception as e:
-            print(f"{Fore.RED}❌ Data error for {symbol}: {e}{Style.RESET_ALL}")
+            #print(f"{Fore.RED}❌ Data error for {symbol}: {e}{Style.RESET_ALL}")
             return None
     
     def calculate_advanced_indicators(self, df):
@@ -621,7 +621,7 @@ class EnhancedCryptoPredictionAppV2:
             return df
             
         except Exception as e:
-            print(f"{Fore.RED}❌ Indicator calculation error: {e}{Style.RESET_ALL}")
+            #print(f"{Fore.RED}❌ Indicator calculation error: {e}{Style.RESET_ALL}")
             return None
     
     def calculate_fibonacci_levels(self, df):
@@ -1888,8 +1888,8 @@ class EnhancedCryptoPredictionAppV2:
         # Use provided coin_pairs or fall back to self.pairs
         pairs_to_analyze = coin_pairs if coin_pairs else self.pairs
         
-        print(f"\n{Fore.YELLOW}{Style.BRIGHT}🎯 GỢI Ý COIN TỐT NHẤT CHO TỪNG KHUNG THỜI GIAN{Style.RESET_ALL}")
-        print("=" * 70)
+        #print(f"\n{Fore.YELLOW}{Style.BRIGHT}🎯 GỢI Ý COIN TỐT NHẤT CHO TỪNG KHUNG THỜI GIAN{Style.RESET_ALL}")
+        #print("=" * 70)
         
         for investment_type in ['60m', '4h', '1d']:
             results = []
@@ -1911,15 +1911,15 @@ class EnhancedCryptoPredictionAppV2:
             if results:
                 best = results[0]
                 
-                print(f"\n{Fore.CYAN}📈 {investment_type.upper()} ({self.investment_types[investment_type]['hold_duration']}){Style.RESET_ALL}")
-                print(f"Coin: {Fore.YELLOW}{best['symbol']}{Style.RESET_ALL}")
-                print(f"Giá vào lệnh: {Fore.GREEN}{best['entry_price']:.6f}{Style.RESET_ALL}")
-                print(f"SL: {Fore.RED}{best['stop_loss']:.6f}{Style.RESET_ALL}")
-                print(f"TP1: {Fore.GREEN}{best['tp1']:.6f}{Style.RESET_ALL}")
-                print(f"TP2: {Fore.GREEN}{best['tp2']:.6f}{Style.RESET_ALL}")
-                print(f"Tỷ lệ chính xác: {Fore.YELLOW}{best['success_probability']:.1%}{Style.RESET_ALL}")
+                #print(f"\n{Fore.CYAN}📈 {investment_type.upper()} ({self.investment_types[investment_type]['hold_duration']}){Style.RESET_ALL}")
+                #print(f"Coin: {Fore.YELLOW}{best['symbol']}{Style.RESET_ALL}")
+                #print(f"Giá vào lệnh: {Fore.GREEN}{best['entry_price']:.6f}{Style.RESET_ALL}")
+                #print(f"SL: {Fore.RED}{best['stop_loss']:.6f}{Style.RESET_ALL}")
+                #print(f"TP1: {Fore.GREEN}{best['tp1']:.6f}{Style.RESET_ALL}")
+                #print(f"TP2: {Fore.GREEN}{best['tp2']:.6f}{Style.RESET_ALL}")
+                #print(f"Tỷ lệ chính xác: {Fore.YELLOW}{best['success_probability']:.1%}{Style.RESET_ALL}")
         
-        print(f"\n{Fore.BLUE}⏰ Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
+        #print(f"\n{Fore.BLUE}⏰ Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
         
         return all_results
 
@@ -1945,16 +1945,16 @@ class EnhancedCryptoPredictionAppV2:
         # Best recommendation
         if results:
             best = results[0]
-            print(f"\n{Fore.YELLOW}{Style.BRIGHT}� COIN TỐT NHẤT (60m){Style.RESET_ALL}")
-            print("=" * 40)
-            print(f"Coin: {Fore.YELLOW}{best['symbol']}{Style.RESET_ALL}")
-            print(f"Giá vào lệnh: {Fore.GREEN}{best['entry_price']:.6f}{Style.RESET_ALL}")
-            print(f"SL: {Fore.RED}{best['stop_loss']:.6f}{Style.RESET_ALL}")
-            print(f"TP1: {Fore.GREEN}{best['tp1']:.6f}{Style.RESET_ALL}")
-            print(f"TP2: {Fore.GREEN}{best['tp2']:.6f}{Style.RESET_ALL}")
-            print(f"Tỷ lệ chính xác: {Fore.YELLOW}{best['success_probability']:.1%}{Style.RESET_ALL}")
+            #print(f"\n{Fore.YELLOW}{Style.BRIGHT}� COIN TỐT NHẤT (60m){Style.RESET_ALL}")
+            #print("=" * 40)
+            #print(f"Coin: {Fore.YELLOW}{best['symbol']}{Style.RESET_ALL}")
+            #print(f"Giá vào lệnh: {Fore.GREEN}{best['entry_price']:.6f}{Style.RESET_ALL}")
+            #print(f"SL: {Fore.RED}{best['stop_loss']:.6f}{Style.RESET_ALL}")
+            #print(f"TP1: {Fore.GREEN}{best['tp1']:.6f}{Style.RESET_ALL}")
+            #print(f"TP2: {Fore.GREEN}{best['tp2']:.6f}{Style.RESET_ALL}")
+            #print(f"Tỷ lệ chính xác: {Fore.YELLOW}{best['success_probability']:.1%}{Style.RESET_ALL}")
         
-        print(f"\n{Fore.BLUE}⏰ Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
+        #print(f"\n{Fore.BLUE}⏰ Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}{Style.RESET_ALL}")
         
         return results
 
@@ -1962,7 +1962,7 @@ class EnhancedCryptoPredictionAppV2:
         """Thiết lập pattern thị trường hiện tại"""
         if pattern_name in self.market_patterns:
             self.active_pattern = pattern_name
-            print(f"{Fore.YELLOW}🎯 Chuyển sang pattern: {self.market_patterns[pattern_name]['name']}{Style.RESET_ALL}")
+            #print(f"{Fore.YELLOW}🎯 Chuyển sang pattern: {self.market_patterns[pattern_name]['name']}{Style.RESET_ALL}")
             return True
         return False
     
@@ -1994,17 +1994,17 @@ class EnhancedCryptoPredictionAppV2:
             
             pattern = self.get_current_pattern()
             
-            print(f"\n{Fore.YELLOW}{Style.BRIGHT}🎯 REAL BACKTEST TRADING SIGNALS{Style.RESET_ALL}")
-            print(f"Symbol: {symbol} | Timeframe: {timeframe} | Days: {days_back}")
-            print(f"Pattern: {pattern['name']} - {pattern['description']}")
-            print("=" * 70)
+            #print(f"\n{Fore.YELLOW}{Style.BRIGHT}🎯 REAL BACKTEST TRADING SIGNALS{Style.RESET_ALL}")
+            #print(f"Symbol: {symbol} | Timeframe: {timeframe} | Days: {days_back}")
+            #print(f"Pattern: {pattern['name']} - {pattern['description']}")
+            #print("=" * 70)
             
             # Lấy dữ liệu lịch sử thực
             limit = self._calculate_limit_for_timeframe(timeframe, days_back)
             df = self.get_kline_data(symbol, timeframe, limit)
             
             if df is None or len(df) < 50:
-                print(f"{Fore.RED}❌ Không đủ dữ liệu cho backtest{Style.RESET_ALL}")
+                #print(f"{Fore.RED}❌ Không đủ dữ liệu cho backtest{Style.RESET_ALL}")
                 return None
             
             # Tính indicators dựa trên pattern
@@ -2134,17 +2134,17 @@ class EnhancedCryptoPredictionAppV2:
             }
             
             # Display results
-            print(f"\n{Fore.CYAN}📊 KẾT QUẢ BACKTEST THỰC{Style.RESET_ALL}")
-            print(f"Pattern: {pattern['name']}")
-            print(f"Signals generated: {len(signals)}")
-            print(f"Trades executed: {len(trades)}")
-            print(f"Thắng: {winning_trades} | Thua: {losing_trades}")
-            print(f"Tỷ lệ thắng: {win_rate:.1f}%")
-            print(f"PnL tổng: {total_pnl:+.2f}%")
-            print(f"Profit Factor: {profit_factor:.2f}")
-            print(f"Avg PnL: {avg_pnl_percent:+.2f}%")
-            print(f"TP1: {tp1_hits} | SL: {sl_hits} | Timeout: {timeouts}")
-            print(f"Performance Score: {performance_score:.2f}/100")
+            #print(f"\n{Fore.CYAN}📊 KẾT QUẢ BACKTEST THỰC{Style.RESET_ALL}")
+            #print(f"Pattern: {pattern['name']}")
+            #print(f"Signals generated: {len(signals)}")
+            #print(f"Trades executed: {len(trades)}")
+            #print(f"Thắng: {winning_trades} | Thua: {losing_trades}")
+            #print(f"Tỷ lệ thắng: {win_rate:.1f}%")
+            #print(f"PnL tổng: {total_pnl:+.2f}%")
+            #print(f"Profit Factor: {profit_factor:.2f}")
+            #print(f"Avg PnL: {avg_pnl_percent:+.2f}%")
+            #print(f"TP1: {tp1_hits} | SL: {sl_hits} | Timeout: {timeouts}")
+            #print(f"Performance Score: {performance_score:.2f}/100")
             
             # Khôi phục pattern gốc
             self.active_pattern = original_pattern
@@ -2155,7 +2155,7 @@ class EnhancedCryptoPredictionAppV2:
             # Khôi phục pattern gốc khi có lỗi
             if 'original_pattern' in locals():
                 self.active_pattern = original_pattern
-            print(f"{Fore.RED}❌ Lỗi backtest: {e}{Style.RESET_ALL}")
+            #print(f"{Fore.RED}❌ Lỗi backtest: {e}{Style.RESET_ALL}")
             return None
 
     def _calculate_limit_for_timeframe(self, timeframe, days_back):
@@ -2259,7 +2259,7 @@ class EnhancedCryptoPredictionAppV2:
             }
             
         except Exception as e:
-            print(f"Error simulating trade: {e}")
+            #print(f"Error simulating trade: {e}")
             return None
 
 def main():
@@ -2272,7 +2272,7 @@ def main():
         if len(sys.argv) > 1 and sys.argv[1] in ['60m', '4h', '1d']:
             # Phân tích cho một kiểu đầu tư cụ thể
             investment_type = sys.argv[1]
-            print(f"{Fore.CYAN}🎯 Chạy phân tích chuyên biệt cho {investment_type.upper()}{Style.RESET_ALL}")
+            #print(f"{Fore.CYAN}🎯 Chạy phân tích chuyên biệt cho {investment_type.upper()}{Style.RESET_ALL}")
             
             results = []
             for pair in app.pairs:
@@ -2285,8 +2285,8 @@ def main():
             if results:
                 results.sort(key=lambda x: x['success_probability'], reverse=True)
                 best = results[0]
-                print(f"\n{Fore.YELLOW}{Style.BRIGHT}🏆 TOP {investment_type.upper()} RECOMMENDATION{Style.RESET_ALL}")
-                print(f"Symbol: {best['symbol']} | Signal: {best['signal_type']} | Probability: {best['success_probability']:.1%}")
+                #print(f"\n{Fore.YELLOW}{Style.BRIGHT}🏆 TOP {investment_type.upper()} RECOMMENDATION{Style.RESET_ALL}")
+                #print(f"Symbol: {best['symbol']} | Signal: {best['signal_type']} | Probability: {best['success_probability']:.1%}")
                 
         elif len(sys.argv) > 1 and sys.argv[1] == '--multi':
             # Phân tích tất cả các kiểu đầu tư
@@ -2307,7 +2307,7 @@ def main_multi_timeframe():
         app = EnhancedCryptoPredictionAppV2()
         return app.run_multi_timeframe_analysis()
     except Exception as e:
-        print(f"\n{Fore.RED}❌ Critical error: {e}{Style.RESET_ALL}")
+        #print(f"\n{Fore.RED}❌ Critical error: {e}{Style.RESET_ALL}")
         return None
 
 if __name__ == "__main__":

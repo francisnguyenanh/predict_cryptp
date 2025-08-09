@@ -299,24 +299,24 @@ def api_get_coins(base_currency):
 def api_backtest():
     """API chạy backtest với pattern"""
     try:
-        print("🔍 Backtest API called")
+        #print("🔍 Backtest API called")
         data = request.get_json()
-        print(f"🔍 Received data: {data}")
+        #print(f"🔍 Received data: {data}")
         
         symbol = data.get('symbol', 'BTCUSDT')
         timeframe = data.get('timeframe', '4h')
         days_back = int(data.get('days_back', 30))
         pattern_name = data.get('pattern', 'default')  # Changed from pattern_name to pattern
         
-        print(f"🔍 Parameters: symbol={symbol}, timeframe={timeframe}, days_back={days_back}, pattern={pattern_name}")
+        #print(f"🔍 Parameters: symbol={symbol}, timeframe={timeframe}, days_back={days_back}, pattern={pattern_name}")
         
         # Chạy backtest với pattern
         backtest_results = crypto_app.run_backtest(symbol, timeframe, days_back, pattern_name)
         
-        print(f"🔍 Backtest results: {backtest_results}")
+        #print(f"🔍 Backtest results: {backtest_results}")
         
         if not backtest_results:
-            print("❌ No backtest results")
+            #print("❌ No backtest results")
             return jsonify({
                 'success': False,
                 'error': 'Không thể thực hiện backtest'
@@ -325,7 +325,7 @@ def api_backtest():
         # Add symbol to results for frontend formatting
         backtest_results['symbol'] = symbol
         
-        print("✅ Returning successful response")
+        #print("✅ Returning successful response")
         return jsonify({
             'success': True,
             'results': backtest_results,
@@ -333,7 +333,7 @@ def api_backtest():
         })
         
     except Exception as e:
-        print(f"❌ Backtest API error: {e}")
+        #print(f"❌ Backtest API error: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -431,8 +431,4 @@ def get_timeframe_display(tf):
     return display_map.get(tf, tf)
 
 if __name__ == '__main__':
-    print("🚀 Khởi động Crypto Prediction Web App...")
-    print("🌐 Mở trình duyệt và truy cập: http://localhost:5000")
-    print("📊 Nhấn Ctrl+C để dừng server")
-    
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True)
