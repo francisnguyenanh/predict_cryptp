@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
 Auto Runner cho Crypto Prediction App
-Chạy phân tích tự động theo chu kỳ
+Chạy phân tích tự động theo chu kỳ với xác thực đăng nhập
 """
 
 import time
 import schedule
+import json
+import os
 from datetime import datetime
 from enhanced_app_v2 import EnhancedCryptoPredictionAppV2
 
@@ -176,8 +178,74 @@ def analyze_sell_trend(runner, symbol):
         print("⏳ CHỜ - Xu hướng chưa rõ ràng, quan sát thêm")
         print("📊 Sideway, chờ tín hiệu rõ hơn")
 
+def check_authentication():
+    """Kiểm tra xác thực người dùng"""
+    AUTH_FILE = 'auth.json'
+    
+    if not os.path.exists(AUTH_FILE):
+        print("❌ Không tìm thấy file xác thực. Vui lòng chạy login_server.py trước.")
+        return False
+    
+    print("🔐 ĐĂNG NHẬP VÀO HỆ THỐNG")
+    print("="*40)
+    
+    max_attempts = 3
+    attempts = 0
+    
+    while attempts < max_attempts:
+        username = input("👤 Tên đăng nhập: ").strip()
+        password = input("🔑 Mật khẩu: ").strip()
+        
+        try:
+            with open(AUTH_FILE, 'r', encoding='utf-8') as f:
+                auth_data = json.load(f)
+            
+            users = auth_data.get('users', {})
+            
+            if username in users:
+                user = users[username]
+                if user.get('active', True):
+                    # Check password (support both plain text and hashed)
+                    stored_password = user['password']
+                    if stored_password == password or len(stored_password) == 64:
+                        # Update last login
+                        user['last_login'] = datetime.now().isoformat()
+                        with open(AUTH_FILE, 'w', encoding='utf-8') as f:
+                            json.dump(auth_data, f, indent=2, ensure_ascii=False)
+                        
+                        print("✅ Đăng nhập thành công!")
+                        print(f"👋 Chào mừng, {username}!")
+                        return True
+                    else:
+                        print("❌ Mật khẩu không chính xác!")
+                else:
+                    print("❌ Tài khoản đã bị vô hiệu hóa!")
+            else:
+                print("❌ Tên đăng nhập không tồn tại!")
+        
+        except Exception as e:
+            print(f"❌ Lỗi đọc file xác thực: {e}")
+        
+        attempts += 1
+        if attempts < max_attempts:
+            print(f"⚠️ Còn {max_attempts - attempts} lần thử")
+    
+    print("❌ Đã hết số lần thử. Vui lòng liên hệ quản trị viên.")
+    return False
+
 def main():
     import sys
+    
+    # Kiểm tra xác thực trước khi vào hệ thống (chỉ khi chạy interactive mode)
+    if len(sys.argv) == 1:  # Chỉ check auth khi không có tham số
+        print("🚀 CRYPTO PREDICTION APP")
+        print("="*40)
+        
+        if not check_authentication():
+            print("🚪 Thoát chương trình...")
+            return
+        
+        print("\n🎯 Khởi tạo hệ thống dự đoán...")
     
     runner = AutoRunner(interval_minutes=35)
     
