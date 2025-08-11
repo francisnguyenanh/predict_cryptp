@@ -274,7 +274,7 @@ $(document).ready(function() {
             method: 'POST',
             contentType: 'application/json',
             data: JSON.stringify({ symbol: symbol }),
-            timeout: 60000, // 1 minute timeout
+            timeout: 120000, // 2 minutes timeout
             success: function(response) {
                 clearInterval(progressInterval);
                 $('#analysisProgress').css('width', '100%');

@@ -102,7 +102,7 @@
   
   "api_settings": {
     "binance_base_url": "https://api.binance.com/api/v3/klines",
-    "request_timeout": 10,
+    "request_timeout": 30,
     "rate_limit_delay": 1.0,
     "retry_attempts": 3
   },

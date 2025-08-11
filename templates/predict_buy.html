@@ -252,7 +252,7 @@ $(document).ready(function() {
             data: JSON.stringify({
                 base_currency: baseCurrency
             }),
-            timeout: 120000, // 2 minutes timeout
+            timeout: 180000, // 3 minutes timeout
             success: function(response) {
                 clearInterval(progressInterval);
                 $('#analysisProgress').css('width', '100%');

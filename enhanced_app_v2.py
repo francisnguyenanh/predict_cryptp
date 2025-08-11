@@ -461,10 +461,10 @@ class EnhancedCryptoPredictionAppV2:
     def get_top_coins_by_base_currency(self, base_currency='USDT', limit=15):
         """
         Lấy top coins theo base currency từ Binance API
-        Sắp xếp theo volume 24h để có các coin hot nhất
+        Sắp xếp theo lượng tiền giao dịch (price * volume) để có các coin hot nhất
         """
         try:
-            response = requests.get(self.ticker_24hr_url, timeout=10)
+            response = requests.get(self.ticker_24hr_url, timeout=30)
             response.raise_for_status()
             tickers = response.json()
             
@@ -473,22 +473,27 @@ class EnhancedCryptoPredictionAppV2:
             for ticker in tickers:
                 symbol = ticker['symbol']
                 if symbol.endswith(base_currency):
-                    # Loại bỏ những coin có tên quá dài hoặc là leverage tokens
+                    # Loại bỏ những coin có tên quá dài hoặc là leverage tokens và BTC
                     base_coin = symbol.replace(base_currency, '')
                     if (len(base_coin) <= 10 and 
                         not any(x in base_coin for x in ['UP', 'DOWN', 'BEAR', 'BULL']) and
-                        base_coin not in ['BUSD', 'TUSD', 'USDC', 'DAI', 'PAX']):  # Loại bỏ stablecoins
+                        base_coin not in ['BUSD', 'TUSD', 'USDC', 'DAI', 'PAX', 'BTC']):  # Loại bỏ stablecoins và BTC
+                        
+                        price = float(ticker['lastPrice'])
+                        volume = float(ticker['volume'])
+                        money_traded = price * volume  # Tính lượng tiền giao dịch
                         
                         filtered_coins.append({
                             'symbol': symbol,
                             'baseAsset': base_coin,
-                            'volume': float(ticker['volume']),
+                            'volume': volume,
                             'priceChange': float(ticker['priceChangePercent']),
-                            'price': float(ticker['lastPrice'])
+                            'price': price,
+                            'money_traded': money_traded
                         })
             
-            # Sắp xếp theo volume giảm dần
-            filtered_coins.sort(key=lambda x: x['volume'], reverse=True)
+            # Sắp xếp theo lượng tiền giao dịch giảm dần
+            filtered_coins.sort(key=lambda x: x['money_traded'], reverse=True)
             
             # Lấy top coins
             top_coins = filtered_coins[:limit]
@@ -498,14 +503,21 @@ class EnhancedCryptoPredictionAppV2:
             
         except Exception as e:
             #print(f"❌ Error getting top coins: {e}")
-            # Fallback to some popular coins
+            # Fallback to some popular coins (excluding BTC)
             fallback_coins = {
-                'USDT': ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT'],
-                'JPY': ['BTCJPY', 'ETHJPY', 'XRPJPY', 'ADAJPY', 'BNBJPY']
+                'USDT': ['ETHUSDT', 'BNBUSDT', 'ADAUSDT', 'XRPUSDT', 'SOLUSDT', 'DOTUSDT', 'LINKUSDT', 'AVAXUSDT'],
+                'JPY': ['ETHJPY', 'XRPJPY', 'ADAJPY', 'BNBJPY']
             }
             
             fallback_list = fallback_coins.get(base_currency, [])[:limit]
-            return [{'symbol': coin, 'baseAsset': coin.replace(base_currency, '')} for coin in fallback_list]
+            return [{
+                'symbol': coin, 
+                'baseAsset': coin.replace(base_currency, ''),
+                'volume': 0,
+                'priceChange': 0,
+                'price': 0,
+                'money_traded': 0
+            } for coin in fallback_list]
 
     def get_available_base_currencies(self):
         """Trả về danh sách base currencies được hỗ trợ"""
@@ -521,7 +533,7 @@ class EnhancedCryptoPredictionAppV2:
                 'limit': limit
             }
             
-            response = requests.get(self.base_url, params=params, timeout=10)
+            response = requests.get(self.base_url, params=params, timeout=30)
             response.raise_for_status()
             data = response.json()
             
