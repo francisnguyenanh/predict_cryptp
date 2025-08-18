@@ -586,9 +586,8 @@ class EnhancedCryptoPredictionAppV2:
             df['volume_sma'] = calculate_sma(df['volume'], 20)
             df['volume_ratio'] = df['volume'] / df['volume_sma']
             
-            # Support/Resistance
-            df['resistance'] = df['high'].rolling(window=20).max()
-            df['support'] = df['low'].rolling(window=20).min()
+            # Enhanced Support/Resistance với multiple timeframes
+            df = self.calculate_dynamic_support_resistance(df)
             
             # === NEW ADVANCED INDICATORS ===
             
@@ -635,6 +634,95 @@ class EnhancedCryptoPredictionAppV2:
         except Exception as e:
             #print(f"{Fore.RED}❌ Indicator calculation error: {e}{Style.RESET_ALL}")
             return None
+
+    def calculate_dynamic_support_resistance(self, df):
+        """Tính toán hỗ trợ/kháng cự động với nhiều phương pháp"""
+        try:
+            # 1. Traditional High/Low method (đã có)
+            df['resistance'] = df['high'].rolling(window=20).max()
+            df['support'] = df['low'].rolling(window=20).min()
+            
+            # 2. Pivot Points method
+            df = self.calculate_pivot_points(df)
+            
+            # 3. Volume-weighted support/resistance
+            df = self.calculate_volume_weighted_levels(df)
+            
+            # 4. Multiple timeframe resistance levels
+            df['resistance_strong'] = df['high'].rolling(window=50).max()  # Stronger resistance
+            df['resistance_weak'] = df['high'].rolling(window=10).max()    # Weaker resistance
+            
+            df['support_strong'] = df['low'].rolling(window=50).min()      # Stronger support
+            df['support_weak'] = df['low'].rolling(window=10).min()        # Weaker support
+            
+            # 5. EMA-based dynamic levels
+            df['ema_resistance'] = df[['EMA_20', 'EMA_50']].max(axis=1)
+            df['ema_support'] = df[['EMA_20', 'EMA_50']].min(axis=1)
+            
+            return df
+            
+        except Exception as e:
+            # Fallback to simple method
+            df['resistance'] = df['high'].rolling(window=20).max()
+            df['support'] = df['low'].rolling(window=20).min()
+            return df
+    
+    def calculate_pivot_points(self, df):
+        """Tính các mức pivot points"""
+        try:
+            # Sử dụng dữ liệu ngày trước để tính pivot
+            df['prev_high'] = df['high'].shift(1)
+            df['prev_low'] = df['low'].shift(1)
+            df['prev_close'] = df['close'].shift(1)
+            
+            # Pivot Point
+            df['pivot'] = (df['prev_high'] + df['prev_low'] + df['prev_close']) / 3
+            
+            # Resistance levels
+            df['r1'] = 2 * df['pivot'] - df['prev_low']
+            df['r2'] = df['pivot'] + (df['prev_high'] - df['prev_low'])
+            df['r3'] = df['prev_high'] + 2 * (df['pivot'] - df['prev_low'])
+            
+            # Support levels  
+            df['s1'] = 2 * df['pivot'] - df['prev_high']
+            df['s2'] = df['pivot'] - (df['prev_high'] - df['prev_low'])
+            df['s3'] = df['prev_low'] - 2 * (df['prev_high'] - df['pivot'])
+            
+            return df
+            
+        except Exception as e:
+            # Set default values if calculation fails
+            df['pivot'] = df['close']
+            df['r1'] = df['close'] * 1.01
+            df['r2'] = df['close'] * 1.02  
+            df['r3'] = df['close'] * 1.03
+            df['s1'] = df['close'] * 0.99
+            df['s2'] = df['close'] * 0.98
+            df['s3'] = df['close'] * 0.97
+            return df
+    
+    def calculate_volume_weighted_levels(self, df):
+        """Tính mức hỗ trợ/kháng cự theo volume"""
+        try:
+            # VWAP (Volume Weighted Average Price)
+            df['vwap'] = (df['close'] * df['volume']).cumsum() / df['volume'].cumsum()
+            
+            # Volume-weighted resistance (giá cao với volume cao)
+            df['volume_weighted_high'] = df['high'] * df['volume']
+            df['vw_resistance'] = df['volume_weighted_high'].rolling(window=20).sum() / df['volume'].rolling(window=20).sum()
+            
+            # Volume-weighted support (giá thấp với volume cao)
+            df['volume_weighted_low'] = df['low'] * df['volume']
+            df['vw_support'] = df['volume_weighted_low'].rolling(window=20).sum() / df['volume'].rolling(window=20).sum()
+            
+            return df
+            
+        except Exception as e:
+            # Fallback values
+            df['vwap'] = df['close']
+            df['vw_resistance'] = df['high']
+            df['vw_support'] = df['low']
+            return df
     
     def calculate_fibonacci_levels(self, df):
         """Tự động tính các mức Fibonacci Retracement"""
@@ -691,154 +779,243 @@ class EnhancedCryptoPredictionAppV2:
     
 
     def calculate_tp_sl_by_investment_type(self, entry_price, signal_type, atr_value, trend_strength, investment_type='60m', df_main=None):
-        """Tính toán TP/SL theo kiểu đầu tư với Fibonacci và Pivot Points"""
+        """Tính toán TP/SL theo kiểu đầu tư với kháng cự, hỗ trợ và các chỉ số kỹ thuật chính xác hơn"""
         
-        # Base multipliers theo investment type
+        # Base multipliers được điều chỉnh nhỏ hơn để gần thực tế hơn
         if investment_type == '60m':
             if trend_strength == "STRONG_UP":
-                tp1_multiplier = 2.8
-                tp2_multiplier = 4.5
-                sl_multiplier = 1.5
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.5, 1.0, 0.3
             elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
-                tp1_multiplier = 1.2
-                tp2_multiplier = 2.0
-                sl_multiplier = 1.0
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.3, 0.6, 0.2
             else:
-                tp1_multiplier = 1.8
-                tp2_multiplier = 2.8
-                sl_multiplier = 1.2
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.4, 0.8, 0.25
                 
         elif investment_type == '4h':
             if trend_strength == "STRONG_UP":
-                tp1_multiplier = 4.2
-                tp2_multiplier = 6.5
-                sl_multiplier = 1.8
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.8, 1.5, 0.4
             elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
-                tp1_multiplier = 1.6
-                tp2_multiplier = 2.6
-                sl_multiplier = 1.3
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.5, 1.0, 0.3
             else:
-                tp1_multiplier = 2.3
-                tp2_multiplier = 3.6
-                sl_multiplier = 1.5
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.6, 1.2, 0.35
                 
         elif investment_type == '1d':
             if trend_strength == "STRONG_UP":
-                tp1_multiplier = 5.5
-                tp2_multiplier = 9.0
-                sl_multiplier = 2.2
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 1.2, 2.0, 0.6
             elif trend_strength in ["STRONG_DOWN", "WAIT_FOR_UPTREND"]:
-                tp1_multiplier = 2.2
-                tp2_multiplier = 3.6
-                sl_multiplier = 1.8
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.8, 1.5, 0.4
             else:
-                tp1_multiplier = 3.0
-                tp2_multiplier = 5.2
-                sl_multiplier = 2.0
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 1.0, 1.8, 0.5
         
-        # Basic TP/SL calculation
+        # Basic TP/SL calculation với ATR nhỏ hơn
         if signal_type == 'BUY':
             base_tp1 = entry_price + (atr_value * tp1_multiplier)
             base_tp2 = entry_price + (atr_value * tp2_multiplier)
             base_sl = entry_price - (atr_value * sl_multiplier)
         else:  # WAIT
-            base_tp1 = entry_price + (atr_value * 1.0)
-            base_tp2 = entry_price + (atr_value * 2.0)
-            base_sl = entry_price - (atr_value * 0.5)
+            base_tp1 = entry_price + (atr_value * 0.3)
+            base_tp2 = entry_price + (atr_value * 0.6)
+            base_sl = entry_price - (atr_value * 0.2)
         
-        # === ENHANCED TP/SL WITH FIBONACCI & TECHNICAL LEVELS ===
+        # === ENHANCED TP/SL WITH RESISTANCE/SUPPORT & TECHNICAL LEVELS ===
+        
+        # Đảm bảo TP/SL trong khoảng hợp lý (0.5% - 3% cho scalping/short-term)
+        min_profit_pct = 0.005 if investment_type == '60m' else 0.008 if investment_type == '4h' else 0.012
+        max_profit_pct = 0.03 if investment_type == '60m' else 0.05 if investment_type == '4h' else 0.08
+        max_loss_pct = 0.015 if investment_type == '60m' else 0.025 if investment_type == '4h' else 0.04
         
         if df_main is not None and len(df_main) > 0 and signal_type == 'BUY':
             latest = df_main.iloc[-1]
             
-            # Fibonacci-based TP adjustment
+            # 1. MULTI-LEVEL RESISTANCE-BASED TP ADJUSTMENT (Chính xác hơn)
+            resistance_levels = []
+            
+            # Collect different resistance levels
+            if not pd.isna(latest['resistance']):
+                resistance_levels.append(('traditional', latest['resistance']))
+            if not pd.isna(latest['resistance_weak']):
+                resistance_levels.append(('weak', latest['resistance_weak']))
+            if not pd.isna(latest['resistance_strong']):
+                resistance_levels.append(('strong', latest['resistance_strong']))
+            if not pd.isna(latest['r1']):
+                resistance_levels.append(('pivot_r1', latest['r1']))
+            if not pd.isna(latest['r2']):
+                resistance_levels.append(('pivot_r2', latest['r2']))
+            if not pd.isna(latest['vw_resistance']):
+                resistance_levels.append(('volume_weighted', latest['vw_resistance']))
+            if not pd.isna(latest['ema_resistance']):
+                resistance_levels.append(('ema', latest['ema_resistance']))
+            
+            # Filter resistance levels above entry price
+            valid_resistances = [(name, level) for name, level in resistance_levels if level > entry_price * 1.005]
+            
+            if valid_resistances:
+                # Sort by distance from entry price
+                valid_resistances.sort(key=lambda x: x[1])
+                
+                # TP1: Target first significant resistance (75% of distance)
+                first_resistance = valid_resistances[0][1]
+                resistance_distance = first_resistance - entry_price
+                resistance_tp1 = entry_price + (resistance_distance * 0.75)
+                
+                # TP2: Target second resistance or 95% of first resistance
+                if len(valid_resistances) > 1:
+                    second_resistance = valid_resistances[1][1]
+                    resistance_tp2 = entry_price + ((second_resistance - entry_price) * 0.9)
+                else:
+                    resistance_tp2 = entry_price + (resistance_distance * 0.95)
+                
+                # Apply resistance-based TP if they're reasonable
+                if resistance_tp1 < entry_price * (1 + max_profit_pct):
+                    base_tp1 = min(base_tp1, resistance_tp1)
+                if resistance_tp2 < entry_price * (1 + max_profit_pct * 1.5):
+                    base_tp2 = min(base_tp2, resistance_tp2)
+                
+                # Check for resistance cluster (multiple resistances within 2%)
+                resistance_prices = [level for name, level in valid_resistances]
+                cluster_count = 0
+                for i, price in enumerate(resistance_prices):
+                    if price <= first_resistance * 1.02:  # Within 2% of first resistance
+                        cluster_count += 1
+                
+                # If there's a resistance cluster, be more conservative
+                if cluster_count >= 3:
+                    base_tp1 *= 0.85  # Reduce TP1 by 15%
+                    base_tp2 *= 0.9   # Reduce TP2 by 10%
+            
+            # 2. MULTI-LEVEL SUPPORT-BASED SL ADJUSTMENT (Chính xác hơn)
+            support_levels = []
+            
+            # Collect different support levels
+            if not pd.isna(latest['support']):
+                support_levels.append(('traditional', latest['support']))
+            if not pd.isna(latest['support_weak']):
+                support_levels.append(('weak', latest['support_weak']))
+            if not pd.isna(latest['support_strong']):
+                support_levels.append(('strong', latest['support_strong']))
+            if not pd.isna(latest['s1']):
+                support_levels.append(('pivot_s1', latest['s1']))
+            if not pd.isna(latest['s2']):
+                support_levels.append(('pivot_s2', latest['s2']))
+            if not pd.isna(latest['vw_support']):
+                support_levels.append(('volume_weighted', latest['vw_support']))
+            if not pd.isna(latest['ema_support']):
+                support_levels.append(('ema', latest['ema_support']))
+            if not pd.isna(latest['vwap']):
+                support_levels.append(('vwap', latest['vwap']))
+            
+            # Filter support levels below entry price
+            valid_supports = [(name, level) for name, level in support_levels if level < entry_price * 0.995]
+            
+            if valid_supports:
+                # Sort by distance from entry price (closest first)
+                valid_supports.sort(key=lambda x: x[1], reverse=True)
+                
+                # Use strongest support that's not too far
+                strongest_support = valid_supports[0][1]
+                
+                # SL = 2-3% below strongest support level
+                support_sl = strongest_support * 0.97
+                
+                # Don't place SL too far (max loss constraint will handle this)
+                if support_sl > entry_price * (1 - max_loss_pct * 1.5):
+                    base_sl = max(base_sl, support_sl)
+            
+            # 3. FIBONACCI RETRACEMENT ADJUSTMENT
             if not pd.isna(latest['fib_236']) and not pd.isna(latest['fib_618']):
-                # TP1: Aim for next Fibonacci level above entry
-                fib_levels = [latest['fib_236'], latest['fib_382'], latest['fib_500'], latest['fib_618']]
-                fib_levels.sort()
+                # TP1 tại Fibonacci 38.2% hoặc 50%
+                if not pd.isna(latest['fib_382']) and latest['fib_382'] > entry_price:
+                    fib_tp1 = latest['fib_382']
+                    base_tp1 = min(base_tp1, fib_tp1)
                 
-                # Find next Fibonacci resistance above entry price
-                next_fib_resistance = None
-                for fib_level in fib_levels:
-                    if fib_level > entry_price * 1.005:  # At least 0.5% above entry
-                        next_fib_resistance = fib_level
-                        break
-                
-                if next_fib_resistance:
-                    # Adjust TP1 to Fibonacci level if it's reasonable
-                    fib_tp1 = next_fib_resistance
-                    if entry_price * 1.01 <= fib_tp1 <= entry_price * 1.15:  # 1-15% range
-                        base_tp1 = (base_tp1 + fib_tp1) / 2  # Blend with ATR-based TP
-                
-                # TP2: Target higher Fibonacci level
-                higher_fib = None
-                for fib_level in reversed(fib_levels):
-                    if fib_level > entry_price * 1.02:
-                        higher_fib = fib_level
-                        break
-                
-                if higher_fib and higher_fib > base_tp1:
-                    fib_tp2 = higher_fib
-                    if fib_tp2 <= entry_price * 1.25:  # Max 25% gain
-                        base_tp2 = (base_tp2 + fib_tp2) / 2
+                # TP2 tại Fibonacci 61.8% hoặc extension
+                if latest['fib_618'] > entry_price:
+                    fib_tp2 = latest['fib_618']
+                    base_tp2 = min(base_tp2, fib_tp2)
             
-            # Support-based SL adjustment
-            support_level = latest['support']
-            if not pd.isna(support_level) and support_level < entry_price:
-                # Place SL slightly below support
-                support_sl = support_level * 0.995  # 0.5% below support
-                
-                # Use support-based SL if it's not too far from ATR-based SL
-                sl_distance_atr = entry_price - base_sl
-                sl_distance_support = entry_price - support_sl
-                
-                if 0.5 <= sl_distance_support / sl_distance_atr <= 2.0:  # Within reasonable range
-                    base_sl = (base_sl + support_sl) / 2  # Blend
-            
-            # Bollinger Band adjustment
+            # 4. BOLLINGER BANDS ADJUSTMENT
             if not pd.isna(latest['BB_upper']) and not pd.isna(latest['BB_lower']):
-                # If entry is near BB lower, adjust TP to BB middle/upper
-                bb_position = (entry_price - latest['BB_lower']) / (latest['BB_upper'] - latest['BB_lower'])
+                # TP1 = 80% khoảng cách đến BB upper
+                if latest['BB_upper'] > entry_price:
+                    bb_distance = latest['BB_upper'] - entry_price
+                    bb_tp1 = entry_price + (bb_distance * 0.8)
+                    base_tp1 = min(base_tp1, bb_tp1)
                 
-                if bb_position < 0.3:  # Entry near lower band
-                    bb_tp1 = latest['BB_middle']
-                    bb_tp2 = latest['BB_upper']
-                    
-                    if bb_tp1 > entry_price * 1.005:
-                        base_tp1 = min(base_tp1, bb_tp1)  # Don't exceed BB middle initially
-                    if bb_tp2 > base_tp1:
-                        base_tp2 = (base_tp2 + bb_tp2) / 2  # Blend with BB upper
+                # SL dựa trên BB lower (nhưng không quá gần)
+                if latest['BB_lower'] < entry_price:
+                    bb_sl = latest['BB_lower'] * 0.98
+                    base_sl = max(base_sl, bb_sl)
             
-            # ADX-based adjustment (stronger trends = wider targets)
-            if not pd.isna(latest['ADX']):
-                if latest['ADX'] > 40:  # Very strong trend
-                    base_tp2 *= 1.1  # Extend TP2 by 10%
-                elif latest['ADX'] < 20:  # Weak trend
-                    base_tp1 *= 0.9  # Reduce TP1 by 10%
-                    base_tp2 *= 0.9  # Reduce TP2 by 10%
+            # 5. RSI OVERBOUGHT/OVERSOLD ADJUSTMENT
+            if not pd.isna(latest['RSI']):
+                # Nếu RSI đã cao (>60), giảm TP để tránh đảo chiều
+                if latest['RSI'] > 60:
+                    base_tp1 *= 0.8
+                    base_tp2 *= 0.85
+                # Nếu RSI thấp (<40), có thể tăng TP
+                elif latest['RSI'] < 40:
+                    base_tp1 *= 1.1
+                    base_tp2 *= 1.05
             
-            # Volume confirmation adjustment
+            # 6. VOLUME CONFIRMATION ADJUSTMENT
             if not pd.isna(latest['volume_ratio']):
-                if latest['volume_ratio'] > 2.0:  # High volume breakout
-                    base_tp2 *= 1.05  # Slightly extend TP2
-                elif latest['volume_ratio'] < 0.8:  # Low volume
-                    base_tp1 *= 0.95  # Reduce targets
+                # Volume cao = tín hiệu mạnh = có thể tăng TP
+                if latest['volume_ratio'] > 1.5:
+                    base_tp1 *= 1.05
+                    base_tp2 *= 1.03
+                # Volume thấp = tín hiệu yếu = giảm TP
+                elif latest['volume_ratio'] < 0.8:
+                    base_tp1 *= 0.9
                     base_tp2 *= 0.95
+            
+            # 7. MACD MOMENTUM ADJUSTMENT
+            if not pd.isna(latest['MACD_hist']):
+                # MACD histogram tăng mạnh = momentum tốt
+                if latest['MACD_hist'] > 0:
+                    macd_boost = min(latest['MACD_hist'] * 0.1, 0.05)  # Max 5% boost
+                    base_tp1 *= (1 + macd_boost)
+                    base_tp2 *= (1 + macd_boost * 0.5)
+            
+            # 8. VWAP-BASED ADJUSTMENT
+            if not pd.isna(latest['vwap']):
+                # Nếu giá trên VWAP = xu hướng tăng mạnh hơn
+                if entry_price > latest['vwap']:
+                    # Có thể tăng TP một chút
+                    vwap_distance_pct = (entry_price - latest['vwap']) / latest['vwap']
+                    if vwap_distance_pct > 0.02:  # >2% trên VWAP
+                        base_tp1 *= 1.05
+                        base_tp2 *= 1.03
+                else:
+                    # Giá dưới VWAP = cần thận trọng hơn
+                    base_tp1 *= 0.95
+                    base_tp2 *= 0.97
         
-        # Final validation and rounding
-        tp1 = round(max(base_tp1, entry_price * 1.002), 6)  # Min 0.2% profit
-        tp2 = round(max(base_tp2, tp1 * 1.2), 6)  # TP2 at least 20% higher than TP1
-        stop_loss = round(min(base_sl, entry_price * 0.98), 6)  # Max 2% loss for BUY
+        # === FINAL VALIDATION & REALISTIC CONSTRAINTS ===
         
-        # Risk management: Ensure reasonable R:R ratio
+        # Apply constraints
+        tp1 = max(entry_price * (1 + min_profit_pct), min(base_tp1, entry_price * (1 + max_profit_pct)))
+        tp2 = max(tp1 * 1.3, min(base_tp2, entry_price * (1 + max_profit_pct * 1.5)))
+        stop_loss = max(entry_price * (1 - max_loss_pct), base_sl)
+        
+        # Ensure TP2 > TP1 và risk/reward hợp lý
+        if tp2 <= tp1:
+            tp2 = tp1 * 1.4
+        
+        # Risk management: Đảm bảo R:R ratio tối thiểu 1.5:1
         risk = entry_price - stop_loss
         reward1 = tp1 - entry_price
         
-        if risk > 0 and reward1 / risk < 1.5:  # Poor R:R ratio
-            tp1 = entry_price + (risk * 1.5)  # Ensure at least 1.5:1 R:R
-            tp2 = entry_price + (risk * 2.5)  # Ensure at least 2.5:1 R:R for TP2
+        if risk > 0 and reward1 / risk < 1.2:  # Nếu R:R quá thấp
+            tp1 = entry_price + (risk * 1.3)  # Đảm bảo ít nhất 1.3:1 R:R
+            tp2 = entry_price + (risk * 2.0)  # TP2 = 2:1 R:R
+            
+            # Recheck constraints
+            if tp1 > entry_price * (1 + max_profit_pct):
+                # Nếu TP quá cao, tăng SL để giữ R:R
+                new_risk = (tp1 - entry_price) / 1.3
+                stop_loss = entry_price - new_risk
+                stop_loss = max(stop_loss, entry_price * (1 - max_loss_pct))
         
-        return tp1, tp2, stop_loss
+        return round(tp1, 6), round(tp2, 6), round(stop_loss, 6)
 
     def calculate_tp_sl_fixed(self, entry_price, signal_type, atr_value, trend_strength, df_main=None):
         """Tính toán TP/SL cho SPOT TRADING (chỉ BUY) - backward compatibility với enhanced features"""
