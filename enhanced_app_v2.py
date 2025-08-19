@@ -1017,6 +1017,238 @@ class EnhancedCryptoPredictionAppV2:
         
         return round(tp1, 6), round(tp2, 6), round(stop_loss, 6)
 
+    def calculate_tp_sl_for_sell_signal(self, entry_price, atr_value, trend_strength, investment_type='60m', df_main=None):
+        """Tính toán TP/SL cho tín hiệu SELL với kháng cự, hỗ trợ và các chỉ số kỹ thuật chính xác"""
+        
+        # Base multipliers được điều chỉnh cho SELL (ngược lại với BUY)
+        if investment_type == '60m':
+            if trend_strength == "STRONG_DOWN":
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.5, 1.0, 0.3
+            elif trend_strength in ["STRONG_UP", "WAIT_FOR_DOWNTREND"]:
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.3, 0.6, 0.2
+            else:
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.4, 0.8, 0.25
+                
+        elif investment_type == '4h':
+            if trend_strength == "STRONG_DOWN":
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.8, 1.5, 0.4
+            elif trend_strength in ["STRONG_UP", "WAIT_FOR_DOWNTREND"]:
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.5, 1.0, 0.3
+            else:
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.6, 1.2, 0.35
+                
+        elif investment_type == '1d':
+            if trend_strength == "STRONG_DOWN":
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 1.2, 2.0, 0.6
+            elif trend_strength in ["STRONG_UP", "WAIT_FOR_DOWNTREND"]:
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 0.8, 1.5, 0.4
+            else:
+                tp1_multiplier, tp2_multiplier, sl_multiplier = 1.0, 1.8, 0.5
+        
+        # Basic TP/SL calculation cho SELL (ngược lại với BUY)
+        base_tp1 = entry_price - (atr_value * tp1_multiplier)  # TP thấp hơn entry
+        base_tp2 = entry_price - (atr_value * tp2_multiplier)  # TP2 thấp hơn TP1
+        base_sl = entry_price + (atr_value * sl_multiplier)    # SL cao hơn entry
+        
+        # Đảm bảo TP/SL trong khoảng hợp lý cho SELL
+        min_profit_pct = 0.005 if investment_type == '60m' else 0.008 if investment_type == '4h' else 0.012
+        max_profit_pct = 0.03 if investment_type == '60m' else 0.05 if investment_type == '4h' else 0.08
+        max_loss_pct = 0.015 if investment_type == '60m' else 0.025 if investment_type == '4h' else 0.04
+        
+        if df_main is not None and len(df_main) > 0:
+            latest = df_main.iloc[-1]
+            
+            # 1. MULTI-LEVEL SUPPORT-BASED TP ADJUSTMENT cho SELL
+            support_levels = []
+            
+            # Collect different support levels
+            if not pd.isna(latest['support']):
+                support_levels.append(('traditional', latest['support']))
+            if not pd.isna(latest['support_weak']):
+                support_levels.append(('weak', latest['support_weak']))
+            if not pd.isna(latest['support_strong']):
+                support_levels.append(('strong', latest['support_strong']))
+            if not pd.isna(latest['s1']):
+                support_levels.append(('pivot_s1', latest['s1']))
+            if not pd.isna(latest['s2']):
+                support_levels.append(('pivot_s2', latest['s2']))
+            if not pd.isna(latest['vw_support']):
+                support_levels.append(('volume_weighted', latest['vw_support']))
+            if not pd.isna(latest['ema_support']):
+                support_levels.append(('ema', latest['ema_support']))
+            
+            # Filter support levels below entry price
+            valid_supports = [(name, level) for name, level in support_levels if level < entry_price * 0.995]
+            
+            if valid_supports:
+                # Sort by distance from entry price (closest first)
+                valid_supports.sort(key=lambda x: x[1], reverse=True)
+                
+                # TP1: Target first significant support (75% of distance)
+                first_support = valid_supports[0][1]
+                support_distance = entry_price - first_support
+                support_tp1 = entry_price - (support_distance * 0.75)
+                
+                # TP2: Target second support or 95% of first support distance
+                if len(valid_supports) > 1:
+                    second_support = valid_supports[1][1]
+                    support_tp2 = entry_price - ((entry_price - second_support) * 0.9)
+                else:
+                    support_tp2 = entry_price - (support_distance * 0.95)
+                
+                # Apply support-based TP if they're reasonable
+                if support_tp1 > entry_price * (1 - max_profit_pct):
+                    base_tp1 = max(base_tp1, support_tp1)
+                if support_tp2 > entry_price * (1 - max_profit_pct * 1.5):
+                    base_tp2 = max(base_tp2, support_tp2)
+                
+                # Check for support cluster (multiple supports within 2%)
+                support_prices = [level for name, level in valid_supports]
+                cluster_count = 0
+                for i, price in enumerate(support_prices):
+                    if price >= first_support * 0.98:  # Within 2% of first support
+                        cluster_count += 1
+                
+                # If there's a support cluster, be more conservative
+                if cluster_count >= 3:
+                    base_tp1 *= 0.85  # Reduce TP1 by 15%
+                    base_tp2 *= 0.9   # Reduce TP2 by 10%
+            
+            # 2. MULTI-LEVEL RESISTANCE-BASED SL ADJUSTMENT cho SELL
+            resistance_levels = []
+            
+            # Collect different resistance levels
+            if not pd.isna(latest['resistance']):
+                resistance_levels.append(('traditional', latest['resistance']))
+            if not pd.isna(latest['resistance_weak']):
+                resistance_levels.append(('weak', latest['resistance_weak']))
+            if not pd.isna(latest['resistance_strong']):
+                resistance_levels.append(('strong', latest['resistance_strong']))
+            if not pd.isna(latest['r1']):
+                resistance_levels.append(('pivot_r1', latest['r1']))
+            if not pd.isna(latest['r2']):
+                resistance_levels.append(('pivot_r2', latest['r2']))
+            if not pd.isna(latest['vw_resistance']):
+                resistance_levels.append(('volume_weighted', latest['vw_resistance']))
+            if not pd.isna(latest['ema_resistance']):
+                resistance_levels.append(('ema', latest['ema_resistance']))
+            if not pd.isna(latest['vwap']):
+                resistance_levels.append(('vwap', latest['vwap']))
+            
+            # Filter resistance levels above entry price
+            valid_resistances = [(name, level) for name, level in resistance_levels if level > entry_price * 1.005]
+            
+            if valid_resistances:
+                # Sort by distance from entry price (closest first)
+                valid_resistances.sort(key=lambda x: x[1])
+                
+                # Use closest resistance that's not too far
+                closest_resistance = valid_resistances[0][1]
+                
+                # SL = 2-3% above closest resistance level
+                resistance_sl = closest_resistance * 1.03
+                
+                # Don't place SL too far (max loss constraint will handle this)
+                if resistance_sl < entry_price * (1 + max_loss_pct * 1.5):
+                    base_sl = min(base_sl, resistance_sl)
+            
+            # 3. FIBONACCI RETRACEMENT ADJUSTMENT cho SELL
+            if not pd.isna(latest['fib_236']) and not pd.isna(latest['fib_618']):
+                # TP1 tại Fibonacci 38.2% hoặc 50% (support levels)
+                if not pd.isna(latest['fib_382']) and latest['fib_382'] < entry_price:
+                    fib_tp1 = latest['fib_382']
+                    base_tp1 = max(base_tp1, fib_tp1)
+                
+                # TP2 tại Fibonacci 61.8% hoặc extension
+                if latest['fib_618'] < entry_price:
+                    fib_tp2 = latest['fib_618']
+                    base_tp2 = max(base_tp2, fib_tp2)
+            
+            # 4. BOLLINGER BANDS ADJUSTMENT cho SELL
+            if not pd.isna(latest['BB_upper']) and not pd.isna(latest['BB_lower']):
+                # TP1 = 80% khoảng cách đến BB lower
+                if latest['BB_lower'] < entry_price:
+                    bb_distance = entry_price - latest['BB_lower']
+                    bb_tp1 = entry_price - (bb_distance * 0.8)
+                    base_tp1 = max(base_tp1, bb_tp1)
+                
+                # SL dựa trên BB upper (nhưng không quá gần)
+                if latest['BB_upper'] > entry_price:
+                    bb_sl = latest['BB_upper'] * 1.02
+                    base_sl = min(base_sl, bb_sl)
+            
+            # 5. RSI OVERSOLD/OVERBOUGHT ADJUSTMENT cho SELL
+            if not pd.isna(latest['RSI']):
+                # Nếu RSI đã thấp (<40), giảm TP để tránh đảo chiều
+                if latest['RSI'] < 40:
+                    base_tp1 *= 0.8
+                    base_tp2 *= 0.85
+                # Nếu RSI cao (>60), có thể tăng TP
+                elif latest['RSI'] > 60:
+                    base_tp1 *= 1.1
+                    base_tp2 *= 1.05
+            
+            # 6. VOLUME CONFIRMATION ADJUSTMENT cho SELL
+            if not pd.isna(latest['volume_ratio']):
+                # Volume cao = tín hiệu mạnh = có thể tăng TP
+                if latest['volume_ratio'] > 1.5:
+                    base_tp1 *= 1.05
+                    base_tp2 *= 1.03
+                # Volume thấp = tín hiệu yếu = giảm TP
+                elif latest['volume_ratio'] < 0.8:
+                    base_tp1 *= 0.9
+                    base_tp2 *= 0.95
+            
+            # 7. MACD MOMENTUM ADJUSTMENT cho SELL
+            if not pd.isna(latest['MACD_hist']):
+                # MACD histogram giảm mạnh = momentum tốt cho sell
+                if latest['MACD_hist'] < 0:
+                    macd_boost = min(abs(latest['MACD_hist']) * 0.1, 0.05)  # Max 5% boost
+                    base_tp1 *= (1 + macd_boost)
+                    base_tp2 *= (1 + macd_boost * 0.5)
+            
+            # 8. VWAP-BASED ADJUSTMENT cho SELL
+            if not pd.isna(latest['vwap']):
+                # Nếu giá dưới VWAP = xu hướng giảm mạnh hơn
+                if entry_price < latest['vwap']:
+                    # Có thể tăng TP một chút
+                    vwap_distance_pct = (latest['vwap'] - entry_price) / latest['vwap']
+                    if vwap_distance_pct > 0.02:  # >2% dưới VWAP
+                        base_tp1 *= 1.05
+                        base_tp2 *= 1.03
+                else:
+                    # Giá trên VWAP = cần thận trọng hơn
+                    base_tp1 *= 0.95
+                    base_tp2 *= 0.97
+        
+        # === FINAL VALIDATION & REALISTIC CONSTRAINTS cho SELL ===
+        
+        # Apply constraints cho SELL
+        tp1 = min(entry_price * (1 - min_profit_pct), max(base_tp1, entry_price * (1 - max_profit_pct)))
+        tp2 = min(tp1 * 0.7, max(base_tp2, entry_price * (1 - max_profit_pct * 1.5)))
+        stop_loss = min(entry_price * (1 + max_loss_pct), base_sl)
+        
+        # Ensure TP2 < TP1 cho SELL và risk/reward hợp lý
+        if tp2 >= tp1:
+            tp2 = tp1 * 0.6
+        
+        # Risk management: Đảm bảo R:R ratio tối thiểu 1.5:1 cho SELL
+        risk = stop_loss - entry_price
+        reward1 = entry_price - tp1
+        
+        if risk > 0 and reward1 / risk < 1.2:  # Nếu R:R quá thấp
+            tp1 = entry_price - (risk * 1.3)  # Đảm bảo ít nhất 1.3:1 R:R
+            tp2 = entry_price - (risk * 2.0)  # TP2 = 2:1 R:R
+            
+            # Recheck constraints
+            if tp1 < entry_price * (1 - max_profit_pct):
+                # Nếu TP quá thấp, giảm SL để giữ R:R
+                new_risk = (entry_price - tp1) / 1.3
+                stop_loss = entry_price + new_risk
+                stop_loss = min(stop_loss, entry_price * (1 + max_loss_pct))
+        
+        return round(tp1, 6), round(tp2, 6), round(stop_loss, 6)
+
     def calculate_tp_sl_fixed(self, entry_price, signal_type, atr_value, trend_strength, df_main=None):
         """Tính toán TP/SL cho SPOT TRADING (chỉ BUY) - backward compatibility với enhanced features"""
         return self.calculate_tp_sl_by_investment_type(entry_price, signal_type, atr_value, trend_strength, '60m', df_main)
@@ -1630,19 +1862,27 @@ class EnhancedCryptoPredictionAppV2:
     
     def predict_enhanced_probability(self, buy_score, sell_score, trends, rsi_value, volume_ratio, volume_analysis, 
                                    main_timeframe='15m', df_main=None):
-        """Dự đoán xác suất thành công với Weighted Multi-Timeframe Analysis"""
-        signal_type = 'BUY'
-        max_score = buy_score
+        """Dự đoán xác suất thành công với Weighted Multi-Timeframe Analysis - FOCUS VÀO SPOT TRADING (chỉ BUY)"""
         
-        # Nếu sell_score cao hơn buy_score, chờ cơ hội tốt hơn
-        if sell_score > buy_score:
-            max_score = 0
-            signal_type = 'WAIT'
+        # Determine signal type based on scores and thresholds - SPOT TRADING ONLY
+        signal_type = 'WAIT'
+        max_score = 0
+        base_prob = 0
         
-        # Base probability từ signal score
-        if signal_type == 'BUY':
-            base_prob = min(max_score / 20.0, 0.7)  # Điều chỉnh do có nhiều chỉ báo hơn
+        # Enhanced logic to determine signal type - CHỈ FOCUS VÀO BUY CHO SPOT TRADING
+        score_difference = buy_score - sell_score
+        min_signal_threshold = 8  # Minimum score for signal
+        
+        # CHỈ PHÁT SINH TÍN HIỆU BUY CHO SPOT TRADING
+        # Sell signal chỉ được sử dụng nội bộ để đánh giá, không đưa ra khuyến nghị
+        if buy_score >= min_signal_threshold and score_difference >= 3:
+            signal_type = 'BUY'
+            max_score = buy_score
+            base_prob = min(buy_score / 20.0, 0.7)
         else:
+            # Nếu không đủ điều kiện BUY thì WAIT - KHÔNG BAO GIỜ SELL TRONG SPOT TRADING
+            signal_type = 'WAIT'
+            max_score = 0
             base_prob = 0
         
         # === WEIGHTED MULTI-TIMEFRAME ANALYSIS ===
@@ -1674,74 +1914,81 @@ class EnhancedCryptoPredictionAppV2:
         if total_weight > 0:
             weighted_trend_score /= total_weight
         
-        # Trend bonus dựa trên weighted score
+        # Trend bonus dựa trên weighted score và signal type - CHỈ CHO BUY (SPOT TRADING)
         trend_bonus = 0
         trend_strength = "MIXED"
         
-        if weighted_trend_score >= 1.5:
-            trend_bonus = 0.25
-            trend_strength = "STRONG_UP"
-        elif weighted_trend_score >= 0.8:
-            trend_bonus = 0.15
-            trend_strength = "STRONG_UP"
-        elif weighted_trend_score <= -1.5:
-            trend_bonus = -0.3
-            trend_strength = "WAIT_FOR_UPTREND"
-        elif weighted_trend_score <= -0.8:
-            trend_bonus = -0.2
-            trend_strength = "STRONG_DOWN"
+        if signal_type == 'BUY':
+            if weighted_trend_score >= 1.5:
+                trend_bonus = 0.25
+                trend_strength = "STRONG_UP"
+            elif weighted_trend_score >= 0.8:
+                trend_bonus = 0.15
+                trend_strength = "STRONG_UP"
+            elif weighted_trend_score <= -1.5:
+                trend_bonus = -0.3
+                trend_strength = "WAIT_FOR_UPTREND"
+            elif weighted_trend_score <= -0.8:
+                trend_bonus = -0.2
+                trend_strength = "STRONG_DOWN"
+            else:
+                trend_bonus = weighted_trend_score * 0.1
+                trend_strength = "MIXED"
         else:
-            trend_bonus = weighted_trend_score * 0.1
+            # WAIT signal cho spot trading
             trend_strength = "MIXED"
+            trend_bonus = 0
         
-        # === ADVANCED SIGNAL CONFIRMATIONS ===
+        # === ADVANCED SIGNAL CONFIRMATIONS - CHỈ CHO BUY (SPOT TRADING) ===
         confirmation_bonus = 0
         
         if df_main is not None and len(df_main) > 0:
             latest = df_main.iloc[-1]
             
-            # ADX confirmation (xu hướng mạnh)
+            # ADX confirmation (xu hướng mạnh) - CHỈ CHO BUY
             if not pd.isna(latest['ADX']) and latest['ADX'] > 25:
                 if signal_type == 'BUY' and trend_strength in ["STRONG_UP"]:
                     confirmation_bonus += 0.1
             
-            # Ichimoku Cloud confirmation
+            # Ichimoku Cloud confirmation - CHỈ CHO BUY
             if not pd.isna(latest['senkou_span_a']) and not pd.isna(latest['senkou_span_b']):
                 cloud_top = max(latest['senkou_span_a'], latest['senkou_span_b'])
                 if signal_type == 'BUY' and latest['close'] > cloud_top:
                     confirmation_bonus += 0.08
             
-            # Stochastic confirmation
-            if not pd.isna(latest['stoch_k']) and signal_type == 'BUY':
-                if latest['stoch_k'] < 20:  # Oversold area
-                    confirmation_bonus += 0.05
-                elif latest['stoch_k'] > 80:  # Overbought area
-                    confirmation_bonus -= 0.1
+            # Stochastic confirmation - CHỈ CHO BUY
+            if not pd.isna(latest['stoch_k']):
+                if signal_type == 'BUY':
+                    if latest['stoch_k'] < 20:  # Oversold area - tốt cho BUY
+                        confirmation_bonus += 0.05
+                    elif latest['stoch_k'] > 80:  # Overbought area - không tốt cho BUY
+                        confirmation_bonus -= 0.1
             
-            # Volume flow confirmation (OBV)
+            # Volume flow confirmation (OBV) - CHỈ CHO BUY
             if not pd.isna(latest['OBV']) and not pd.isna(latest['OBV_sma']):
                 if signal_type == 'BUY' and latest['OBV'] > latest['OBV_sma']:
                     confirmation_bonus += 0.06
             
-            # Bollinger Band position
+            # Bollinger Band position - CHỈ CHO BUY
             if not pd.isna(latest['BB_lower']) and not pd.isna(latest['BB_upper']):
                 bb_position = (latest['close'] - latest['BB_lower']) / (latest['BB_upper'] - latest['BB_lower'])
-                if signal_type == 'BUY' and bb_position < 0.2:  # Near lower band (oversold)
+                if signal_type == 'BUY' and bb_position < 0.2:  # Near lower band (oversold) - tốt cho BUY
                     confirmation_bonus += 0.05
         
-        # RSI bonus (refined)
+        # RSI bonus (refined) CHỈ CHO BUY TRONG SPOT TRADING
         rsi_bonus = 0
         if signal_type == 'BUY':
-            if rsi_value < 25:  # Deep oversold
+            if rsi_value < 25:  # Deep oversold - rất tốt cho BUY
                 rsi_bonus = 0.2
-            elif 25 <= rsi_value <= 40:  # Moderate oversold
-                rsi_bonus = 0.15
-            elif 40 < rsi_value <= 55:  # Neutral bullish
+            elif 25 <= rsi_value <= 40:  # Moderate oversold - tốt cho BUY
+                rsi_bonus = 0.1
+            elif 40 < rsi_value <= 55:  # Neutral bullish - chấp nhận được cho BUY
                 rsi_bonus = 0.05
-            elif rsi_value > 75:  # Overbought
-                rsi_bonus = -0.2
+            elif rsi_value > 70:  # Overbought - rủi ro cho BUY
+                rsi_bonus = -0.15
+        # Không có logic cho SELL vì spot trading chỉ BUY
         
-        # Volume analysis với trọng số đa khung thời gian
+        # Volume analysis với trọng số đa khung thời gian - CHỈ CHO BUY TRONG SPOT TRADING
         volume_bonus = 0
         volume_consistency = 0
         
@@ -1752,23 +1999,23 @@ class EnhancedCryptoPredictionAppV2:
                 if vol_data['price_change'] > 0 and signal_type == 'BUY':
                     volume_bonus += 0.05 * tf_weight
                     volume_consistency += tf_weight
-                elif vol_data['price_change'] < 0:
-                    volume_bonus -= 0.03 * tf_weight
+                # Không có logic cho SELL vì spot trading chỉ BUY
         
         # Multi-timeframe volume consistency bonus
         if volume_consistency >= 0.6:  # Consistency across timeframes
             volume_bonus += 0.08
         
-        # Score difference bonus (signal strength)
+        # Score difference bonus (signal strength) - CHỈ CHO BUY TRONG SPOT TRADING
         score_diff = buy_score - sell_score
-        if score_diff > 8:  # Strong signal separation
-            score_bonus = 0.15
-        elif score_diff > 5:
-            score_bonus = 0.1
-        elif score_diff < -3:
-            score_bonus = -0.2
+        if signal_type == 'BUY':
+            if score_diff > 8:  # Strong BUY signal separation
+                score_bonus = 0.15
+            elif score_diff > 5:  # Moderate BUY signal separation
+                score_bonus = 0.1
+            else:
+                score_bonus = 0
         else:
-            score_bonus = 0
+            score_bonus = 0  # WAIT signal không có bonus
         
         # === RISK MANAGEMENT PENALTIES ===
         risk_penalty = 0
@@ -1872,16 +2119,19 @@ class EnhancedCryptoPredictionAppV2:
         # Entry price = current price
         entry_price = current_price
 
-        # Tính TP/SL dựa trên investment_type với Fibonacci và technical levels
-        tp1, tp2, stop_loss = self.calculate_tp_sl_by_investment_type(
-            entry_price, signal_type, latest['ATR'], trend_strength, investment_type, df_main
-        )
-        
-        # Risk/Reward ratio - chỉ tính cho BUY
+        # Tính TP/SL CHỈ CHO SPOT TRADING (BUY hoặc WAIT)
         if signal_type == 'BUY':
-            rr_ratio = (tp1 - entry_price) / (entry_price - stop_loss)
-        else:  # WAIT
-            rr_ratio = 0  # Không trade
+            tp1, tp2, stop_loss = self.calculate_tp_sl_by_investment_type(
+                entry_price, signal_type, latest['ATR'], trend_strength, investment_type, df_main
+            )
+            # Risk/Reward ratio cho BUY
+            rr_ratio = (tp1 - entry_price) / (entry_price - stop_loss) if stop_loss < entry_price else 0
+        else:  # WAIT - không có SELL trong spot trading
+            # Default values cho WAIT
+            tp1 = entry_price * 1.005  # Minimal target
+            tp2 = entry_price * 1.01
+            stop_loss = entry_price * 0.995
+            rr_ratio = 0
         
         result = {
             'symbol': symbol,
